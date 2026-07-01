@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MYFLIX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --black:#0a0a0a; --bg:#141414; --panel:#181818; --panel2:#232323;
+  --red:#e50914; --red-dark:#b0060f; --gray:#8c8c8c; --white:#f5f5f5;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg); color:var(--white);
+  font-family:'Noto Sans KR', sans-serif;
+  overflow-x:hidden;
+}
+::-webkit-scrollbar{height:8px; width:8px;}
+::-webkit-scrollbar-thumb{background:#333; border-radius:4px;}
+.hidden{display:none !important;}
+button{cursor:pointer; font-family:inherit;}
+img{display:block;}
+
+/* NAV */
+#nav{
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 40px; transition:background .3s ease;
+  background:linear-gradient(180deg, rgba(0,0,0,.75) 0%, transparent 100%);
+}
+#nav.scrolled{background:var(--black); box-shadow:0 2px 10px rgba(0,0,0,.5);}
+.nav-left{display:flex; align-items:center; gap:28px;}
+.logo{font-family:'Bebas Neue', sans-serif; color:var(--red); font-size:32px; letter-spacing:2px; cursor:pointer;}
+#navCategories{display:flex; gap:20px; font-size:14px; color:#e5e5e5;}
+#navCategories span{cursor:pointer; opacity:.85; white-space:nowrap;}
+#navCategories span:hover{opacity:1; font-weight:700;}
+.nav-right{display:flex; align-items:center; gap:14px;}
+#searchInput{
+  width:0; opacity:0; padding:0; border:1px solid #fff; background:rgba(0,0,0,.75); color:#fff;
+  transition:width .3s ease, opacity .3s, padding .3s; font-size:14px; height:34px;
+}
+#searchInput.open{width:220px; opacity:1; padding:0 10px;}
+.icon-btn{background:none; border:none; color:#fff; font-size:18px;}
+#adminBtn{
+  background:transparent; border:1px solid #666; color:#fff; padding:6px 14px; font-size:13px; border-radius:2px;
+}
+#adminBtn:hover{border-color:#fff;}
+
+/* HERO */
+#hero{
+  position:relative; height:80vh; min-height:420px; width:100%;
+  background-size:cover; background-position:center top; display:flex; align-items:flex-end;
+}
+#hero::after{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(0deg, var(--bg) 0%, rgba(20,20,20,.2) 55%, rgba(20,20,20,.1) 100%),
+             linear-gradient(90deg, rgba(0,0,0,.7) 0%, transparent 60%);
+}
+.hero-content{position:relative; z-index:2; padding:0 40px 60px; max-width:640px;}
+.hero-content h1{font-family:'Bebas Neue', sans-serif; font-size:64px; letter-spacing:1px; line-height:1.05; margin-bottom:16px; text-shadow:2px 2px 8px rgba(0,0,0,.6);}
+.hero-content p{font-size:16px; line-height:1.5; color:#e5e5e5; margin-bottom:20px; max-width:520px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
+.hero-btns{display:flex; gap:12px;}
+.btn{border:none; border-radius:4px; padding:11px 26px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;}
+.btn-play{background:#fff; color:#000;}
+.btn-play:hover{background:rgba(255,255,255,.75);}
+.btn-info{background:rgba(109,109,110,.7); color:#fff;}
+.btn-info:hover{background:rgba(109,109,110,.4);}
+.empty-hero{display:flex; align-items:center; justify-content:center; height:100%; text-align:center; padding:20px;}
+.empty-hero h2{font-family:'Bebas Neue',sans-serif; font-size:36px; color:var(--gray);}
+
+/* ROWS */
+#rows{position:relative; z-index:3; margin-top:-90px; padding-bottom:60px;}
+.row{margin-bottom:38px;}
+.row-title{font-size:19px; font-weight:700; padding:0 40px 8px; color:#e5e5e5;}
+.row-track-wrap{position:relative;}
+.row-track{display:flex; gap:6px; overflow-x:auto; padding:0 40px; scroll-behavior:smooth; scrollbar-width:none;}
+.row-track::-webkit-scrollbar{display:none;}
+.row-arrow{
+  position:absolute; top:0; bottom:0; width:48px; background:rgba(20,20,20,.6); border:none; color:#fff; font-size:24px;
+  z-index:5; opacity:0; transition:opacity .2s;
+}
+.row-track-wrap:hover .row-arrow{opacity:1;}
+.row-arrow.left{left:0;} .row-arrow.right{right:0;}
+
+.card{
+  flex:0 0 230px; height:130px; position:relative; border-radius:4px; overflow:hidden; cursor:pointer;
+  background:#222; transition:transform .25s ease, z-index 0s; transform-origin:center;
+}
+.card:hover{transform:scale(1.35); z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.7);}
+.card img{width:100%; height:100%; object-fit:cover;}
+.card .badge{position:absolute; top:6px; right:6px; background:rgba(0,0,0,.6); font-size:10px; padding:2px 6px; border-radius:2px;}
+.card .cinfo{
+  position:absolute; left:0; right:0; bottom:0; padding:8px; background:linear-gradient(0deg, rgba(0,0,0,.9), transparent);
+  opacity:0; transition:opacity .2s; font-size:12px; font-weight:700;
+}
+.card:hover .cinfo{opacity:1;}
+.card .admin-actions{position:absolute; top:6px; left:6px; display:flex; gap:4px; opacity:0; transition:opacity .2s; z-index:20;}
+.card:hover .admin-actions{opacity:1;}
+.admin-mini{background:rgba(0,0,0,.75); border:1px solid #555; color:#fff; font-size:10px; padding:2px 6px; border-radius:2px;}
+.admin-mini:hover{background:var(--red); border-color:var(--red);}
+
+.grid-view{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:20px; padding:20px 40px;}
+.grid-view .card{width:100%; flex:none;}
+
+/* MODAL (detail) */
+.modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px;}
+.modal-box{background:var(--panel); width:100%; max-width:780px; max-height:88vh; overflow-y:auto; border-radius:8px; position:relative;}
+.modal-close{position:absolute; top:14px; right:14px; z-index:10; background:var(--black); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:18px;}
+.modal-media{width:100%; aspect-ratio:16/9; background:#000; position:relative;}
+.modal-media iframe, .modal-media img{width:100%; height:100%; object-fit:contain; border:none;}
+.modal-body{padding:24px 32px 32px;}
+.modal-body h2{font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:1px; margin-bottom:6px;}
+.modal-cat{color:var(--red); font-size:13px; font-weight:700; margin-bottom:12px;}
+.modal-desc{color:#d2d2d2; line-height:1.6; font-size:15px; white-space:pre-wrap;}
+.gallery-strip{display:flex; gap:8px; padding:14px 32px 0; overflow-x:auto;}
+.gallery-strip img{width:90px; height:60px; object-fit:cover; border-radius:3px; cursor:pointer; opacity:.6; border:2px solid transparent;}
+.gallery-strip img.active{opacity:1; border-color:var(--red);}
+
+/* ADMIN PANEL */
+.admin-box{background:var(--panel); width:100%; max-width:560px; max-height:90vh; overflow-y:auto; border-radius:8px; padding:32px; position:relative;}
+.admin-box h2{font-family:'Bebas Neue',sans-serif; font-size:28px; margin-bottom:20px;}
+.field{margin-bottom:16px;}
+.field label{display:block; font-size:13px; color:#ccc; margin-bottom:6px;}
+.field input[type=text], .field input[type=email], .field input[type=password], .field input[type=url], .field textarea, .field select{
+  width:100%; padding:10px 12px; background:#333; border:1px solid #555; color:#fff; border-radius:4px; font-size:14px; font-family:inherit;
+}
+.field input[type=file]{color:#ccc; font-size:13px;}
+.field textarea{resize:vertical; min-height:70px;}
+.field-row{display:flex; gap:12px;}
+.field-row .field{flex:1;}
+.check-row{display:flex; align-items:center; gap:8px; font-size:14px; color:#ccc; margin-bottom:16px;}
+.admin-submit{width:100%; background:var(--red); color:#fff; border:none; padding:12px; border-radius:4px; font-size:15px; font-weight:700; margin-top:6px;}
+.admin-submit:hover{background:var(--red-dark);}
+.admin-cancel{width:100%; background:#333; color:#fff; border:1px solid #555; padding:10px; border-radius:4px; margin-top:8px; font-size:14px;}
+.admin-tabs{display:flex; gap:8px; margin-bottom:20px; border-bottom:1px solid #333;}
+.admin-tab{background:none; border:none; color:#999; padding:10px 4px; font-size:14px; border-bottom:2px solid transparent;}
+.admin-tab.active{color:#fff; border-color:var(--red); font-weight:700;}
+.admin-list-item{display:flex; align-items:center; gap:10px; padding:8px; background:#222; border-radius:4px; margin-bottom:8px;}
+.admin-list-item img{width:56px; height:32px; object-fit:cover; border-radius:2px; flex-shrink:0;}
+.admin-list-item .ali-title{flex:1; font-size:13px;}
+.admin-list-item .ali-cat{font-size:11px; color:var(--gray);}
+.ali-btn{background:#333; border:1px solid #555; color:#fff; font-size:11px; padding:5px 9px; border-radius:3px;}
+.ali-btn.danger:hover{background:var(--red); border-color:var(--red);}
+.status-msg{font-size:13px; padding:8px; border-radius:4px; margin-bottom:14px;}
+.status-msg.err{background:rgba(229,9,20,.15); color:#ff8f95; border:1px solid rgba(229,9,20,.4);}
+.status-msg.ok{background:rgba(70,180,90,.15); color:#8be89f; border:1px solid rgba(70,180,90,.4);}
+.spinner-wrap{display:flex; align-items:center; justify-content:center; height:60vh;}
+.spinner{width:44px; height:44px; border:4px solid #333; border-top-color:var(--red); border-radius:50%; animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#searchResultsTitle{padding:100px 40px 10px; font-size:20px; font-weight:700;}
+
+@media(max-width:768px){
+  #nav{padding:12px 16px;} #navCategories{display:none;}
+  .hero-content h1{font-size:38px;} .hero-content{padding:0 16px 40px;}
+  .row-title, .row-track{padding-left:16px; padding-right:16px;}
+  .card{flex:0 0 160px; height:92px;} .card:hover{transform:scale(1.2);}
+  .admin-box, .modal-box{max-width:96vw;}
+  #searchResultsTitle{padding-left:16px;}
+  .grid-view{padding:20px 16px;}
+}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="nav-left">
+    <span class="logo" id="logoBtn">MYFLIX</span>
+    <div id="navCategories"></div>
+  </div>
+  <div class="nav-right">
+    <input type="text" id="searchInput" placeholder="제목 검색">
+    <button class="icon-btn" id="searchBtn">🔍</button>
+    <button id="adminBtn">관리자</button>
+  </div>
+</nav>
+
+<div id="loadingWrap" class="spinner-wrap"><div class="spinner"></div></div>
+
+<header id="hero" class="hidden"></header>
+<div id="searchResultsTitle" class="hidden"></div>
+<main id="rows"></main>
+
+<!-- Detail Modal -->
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<!-- Admin Modal -->
+<div id="adminOverlay" class="modal-overlay hidden">
+  <div class="admin-box" id="adminBox"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script>
+/* ===================== CONFIG ===================== */
+const CLOUDINARY_CLOUD = 'dbljkloal';
+const CLOUDINARY_PRESET = 'Everything';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAA6mbdYfLrrgCJjN47PX91_mU7I53RiBs",
+  authDomain: "site-c67b4.firebaseapp.com",
+  projectId: "site-c67b4",
+  storageBucket: "site-c67b4.firebasestorage.app",
+  messagingSenderId: "744761377245",
+  appId: "1:744761377245:web:3ddaee14f184716eeef634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* ===================== STATE ===================== */
+let ITEMS = [];
+let isAdmin = false;
+let editingId = null;
+let currentGalleryImages = [];
+
+/* ===================== HELPERS ===================== */
+function extractYoutubeId(url){
+  if(!url) return null;
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : (/^[A-Za-z0-9_-]{11}$/.test(url.trim()) ? url.trim() : null);
+}
+async function uploadToCloudinary(file){
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:'POST', body: fd });
+  if(!res.ok) throw new Error('Cloudinary 업로드 실패');
+  const data = await res.json();
+  return data.secure_url;
+}
+function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ===================== RENDER: NAV / HERO / ROWS ===================== */
+function groupByCategory(items){
+  const map = {};
+  items.forEach(it=>{
+    const cat = it.category || '기타';
+    if(!map[cat]) map[cat] = [];
+    map[cat].push(it);
+  });
+  return map;
+}
+
+function renderNavCategories(){
+  const cats = [...new Set(ITEMS.map(i=>i.category || '기타'))];
+  const wrap = document.getElementById('navCategories');
+  wrap.innerHTML = cats.map(c=>`<span data-cat="${esc(c)}">${esc(c)}</span>`).join('');
+  wrap.querySelectorAll('span').forEach(s=>{
+    s.onclick = ()=>{
+      const el = document.getElementById('row-'+encodeURIComponent(s.dataset.cat));
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+  });
+}
+
+function renderHero(){
+  const hero = document.getElementById('hero');
+  hero.classList.remove('hidden');
+  const featured = ITEMS.find(i=>i.featured) || ITEMS[0];
+  if(!featured){
+    hero.style.backgroundImage = 'none';
+    hero.innerHTML = `<div class="empty-hero"><div><h2>아직 등록된 콘텐츠가 없습니다</h2><p style="color:#999;margin-top:8px;">관리자로 로그인해서 첫 콘텐츠를 추가해보세요.</p></div></div>`;
+    return;
+  }
+  hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
+  hero.innerHTML = `
+    <div class="hero-content">
+      <h1>${esc(featured.title)}</h1>
+      <p>${esc(featured.description||'')}</p>
+      <div class="hero-btns">
+        <button class="btn btn-play" onclick="openDetail('${featured.id}')">▶ 재생</button>
+        <button class="btn btn-info" onclick="openDetail('${featured.id}')">ⓘ 상세 정보</button>
+      </div>
+    </div>`;
+}
+
+function cardHtml(it){
+  const badge = it.type === 'youtube' ? '영상' : '사진';
+  const adminBtns = isAdmin ? `<div class="admin-actions">
+      <button class="admin-mini" onclick="event.stopPropagation(); openAdminForm('${it.id}')">수정</button>
+      <button class="admin-mini" onclick="event.stopPropagation(); deleteItem('${it.id}')">삭제</button>
+    </div>` : '';
+  return `<div class="card" onclick="openDetail('${it.id}')">
+      ${adminBtns}
+      <span class="badge">${badge}</span>
+      <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+      <div class="cinfo">${esc(it.title)}</div>
+    </div>`;
+}
+
+function renderRows(){
+  const rowsEl = document.getElementById('rows');
+  if(ITEMS.length === 0){ rowsEl.innerHTML=''; return; }
+  const grouped = groupByCategory(ITEMS);
+  rowsEl.innerHTML = Object.entries(grouped).map(([cat, items])=>`
+    <div class="row" id="row-${encodeURIComponent(cat)}">
+      <div class="row-title">${esc(cat)}</div>
+      <div class="row-track-wrap">
+        <button class="row-arrow left" onclick="scrollRow(this,-1)">&#10094;</button>
+        <div class="row-track">${items.map(cardHtml).join('')}</div>
+        <button class="row-arrow right" onclick="scrollRow(this,1)">&#10095;</button>
+      </div>
+    </div>`).join('');
+}
+function scrollRow(btn, dir){
+  const track = btn.parentElement.querySelector('.row-track');
+  track.scrollBy({left: dir*600, behavior:'smooth'});
+}
+
+function renderAll(){
+  document.getElementById('loadingWrap').classList.add('hidden');
+  renderNavCategories();
+  renderHero();
+  renderRows();
+}
+
+/* ===================== SEARCH ===================== */
+document.getElementById('searchBtn').onclick = ()=>{
+  const input = document.getElementById('searchInput');
+  input.classList.toggle('open');
+  if(input.classList.contains('open')) input.focus();
+  else { input.value=''; doSearch(''); }
+};
+document.getElementById('searchInput').addEventListener('input', e=>doSearch(e.target.value));
+function doSearch(q){
+  q = q.trim().toLowerCase();
+  const hero = document.getElementById('hero');
+  const rowsEl = document.getElementById('rows');
+  const titleEl = document.getElementById('searchResultsTitle');
+  if(!q){
+    titleEl.classList.add('hidden');
+    hero.classList.remove('hidden');
+    renderRows();
+    return;
+  }
+  hero.classList.add('hidden');
+  titleEl.classList.remove('hidden');
+  const results = ITEMS.filter(i => (i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
+  rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
+}
+document.getElementById('logoBtn').onclick = ()=>{
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchInput').classList.remove('open');
+  doSearch('');
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+
+/* ===================== DETAIL MODAL ===================== */
+function openDetail(id){
+  const it = ITEMS.find(i=>i.id===id);
+  if(!it) return;
+  const box = document.getElementById('modalBox');
+  let mediaHtml = '';
+  let galleryHtml = '';
+  if(it.type === 'youtube'){
+    mediaHtml = `<div class="modal-media"><iframe src="https://www.youtube.com/embed/${it.youtubeId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></div>`;
+  } else {
+    currentGalleryImages = (it.images && it.images.length) ? it.images : [it.thumbnailUrl];
+    mediaHtml = `<div class="modal-media"><img id="mainGalleryImg" src="${currentGalleryImages[0]}" alt="${esc(it.title)}"></div>`;
+    if(currentGalleryImages.length > 1){
+      galleryHtml = `<div class="gallery-strip">${currentGalleryImages.map((url,idx)=>
+        `<img src="${url}" class="${idx===0?'active':''}" onclick="switchGalleryImg('${url}', this)">`).join('')}</div>`;
+    }
+  }
+  box.innerHTML = `
+    <button class="modal-close" onclick="closeDetail()">✕</button>
+    ${mediaHtml}
+    ${galleryHtml}
+    <div class="modal-body">
+      <h2>${esc(it.title)}</h2>
+      <div class="modal-cat">${esc(it.category||'기타')}</div>
+      <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
+    </div>`;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function switchGalleryImg(url, el){
+  document.getElementById('mainGalleryImg').src = url;
+  el.parentElement.querySelectorAll('img').forEach(im=>im.classList.remove('active'));
+  el.classList.add('active');
+}
+function closeDetail(){
+  document.getElementById('modalOverlay').classList.add('hidden');
+  document.getElementById('modalBox').innerHTML = '';
+}
+document.getElementById('modalOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'modalOverlay') closeDetail();
+});
+
+/* ===================== FIRESTORE LIVE SYNC ===================== */
+db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
+  ITEMS = snap.docs.map(d=>({id:d.id, ...d.data()}));
+  renderAll();
+}, err=>{
+  document.getElementById('loadingWrap').innerHTML = `<p style="color:#e50914;padding:20px;">데이터를 불러오지 못했습니다: ${esc(err.message)}<br>Firestore 보안 규칙 및 콘솔 설정을 확인해주세요.</p>`;
+});
+
+/* ===================== NAV SCROLL EFFECT ===================== */
+window.addEventListener('scroll', ()=>{
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 60);
+});
+
+/* ===================== AUTH / ADMIN ===================== */
+auth.onAuthStateChanged(user=>{
+  isAdmin = !!user;
+  document.getElementById('adminBtn').textContent = isAdmin ? '관리자 패널' : '관리자';
+  renderRows();
+});
+document.getElementById('adminBtn').onclick = ()=> isAdmin ? openAdminPanel() : openLoginForm();
+document.getElementById('adminOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'adminOverlay') closeAdmin();
+});
+function closeAdmin(){
+  document.getElementById('adminOverlay').classList.add('hidden');
+  document.getElementById('adminBox').innerHTML = '';
+  editingId = null;
+}
+
+function openLoginForm(){
+  document.getElementById('adminBox').innerHTML = `
+    <button class="modal-close" onclick="closeAdmin()">✕</button>
+    <h2>관리자 로그인</h2>
+    <div id="loginStatus"></div>
+    <form id="loginForm">
+      <div class="field"><label>이메일</label><input type="email" id="loginEmail" required></div>
+      <div class="field"><label>비밀번호</label><input type="password" id="loginPassword" required></div>
+      <button type="submit" class="admin-submit">로그인</button>
+    </form>
+    <p style="font-size:12px;color:#888;margin-top:14px;">Firebase 콘솔 &gt; Authentication &gt; Email/Password 로 관리자 계정을 먼저 생성해주세요.</p>`;
+  document.getElementById('adminOverlay').classList.remove('hidden');
+  document.getElementById('loginForm').onsubmit = async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const pw = document.getElementById('loginPassword').value;
+    const statusEl = document.getElementById('loginStatus');
+    try{
+      await auth.signInWithEmailAndPassword(email, pw);
+      openAdminPanel();
+    }catch(err){
+      statusEl.innerHTML = `<div class="status-msg err">로그인 실패: ${esc(err.message)}</div>`;
+    }
+  };
+}
+
+function openAdminPanel(){
+  editingId = null;
+  document.getElementById('adminBox').innerHTML = `
+    <button class="modal-close" onclick="closeAdmin()">✕</button>
+    <h2>관리자 패널</h2>
+    <div class="admin-tabs">
+      <button class="admin-tab active" id="tabAdd" onclick="switchAdminTab('add')">항목 추가/수정</button>
+      <button class="admin-tab" id="tabList" onclick="switchAdminTab('list')">전체 목록 (${ITEMS.length})</button>
+    </div>
+    <div id="adminTabContent"></div>
+    <button class="admin-cancel" onclick="auth.signOut(); closeAdmin();">로그아웃</button>`;
+  document.getElementById('adminOverlay').classList.remove('hidden');
+  switchAdminTab('add');
+}
+function switchAdminTab(tab){
+  document.getElementById('tabAdd').classList.toggle('active', tab==='add');
+  document.getElementById('tabList').classList.toggle('active', tab==='list');
+  if(tab==='add') renderAddForm();
+  else renderAdminList();
+}
+function renderAdminList(){
+  const content = document.getElementById('adminTabContent');
+  if(ITEMS.length===0){ content.innerHTML = '<p style="color:#888;">등록된 항목이 없습니다.</p>'; return; }
+  content.innerHTML = ITEMS.map(it=>`
+    <div class="admin-list-item">
+      <img src="${it.thumbnailUrl}">
+      <div style="flex:1;">
+        <div class="ali-title">${esc(it.title)}</div>
+        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':'사진'}</div>
+      </div>
+      <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
+      <button class="ali-btn danger" onclick="deleteItem('${it.id}')">삭제</button>
+    </div>`).join('');
+}
+function openAdminForm(id){
+  editingId = id;
+  document.getElementById('tabAdd').classList.add('active');
+  document.getElementById('tabList').classList.remove('active');
+  renderAddForm();
+}
+
+function renderAddForm(){
+  const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
+  const cats = [...new Set(ITEMS.map(i=>i.category||'기타'))];
+  const content = document.getElementById('adminTabContent');
+  content.innerHTML = `
+    <div id="formStatus"></div>
+    <form id="itemForm">
+      <div class="field">
+        <label>유형</label>
+        <select id="fType">
+          <option value="youtube" ${it&&it.type==='youtube'?'selected':''}>유튜브 영상</option>
+          <option value="photo" ${it&&it.type==='photo'?'selected':''}>사진</option>
+        </select>
+      </div>
+      <div class="field"><label>제목</label><input type="text" id="fTitle" value="${it?esc(it.title):''}" required></div>
+      <div class="field">
+        <label>카테고리 (직접 입력 가능)</label>
+        <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
+        <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+      </div>
+      <div class="field"><label>설명</label><textarea id="fDesc">${it?esc(it.description||''):''}</textarea></div>
+      <div class="field" id="youtubeField">
+        <label>유튜브 링크 (또는 영상 ID)</label>
+        <input type="text" id="fYoutubeUrl" value="${it&&it.youtubeId?'https://youtu.be/'+it.youtubeId:''}" placeholder="https://youtu.be/...">
+      </div>
+      <div class="field" id="photoField">
+        <label>사진 업로드 (여러 장 선택 가능, 상세보기 갤러리로 표시됨)</label>
+        <input type="file" id="fImages" accept="image/*" multiple>
+        ${it&&it.images&&it.images.length ? `<p style="font-size:12px;color:#888;margin-top:4px;">기존 ${it.images.length}장 등록됨. 새로 선택 시 교체됩니다.</p>`:''}
+      </div>
+      <div class="field">
+        <label>썸네일 이미지 (카드/히어로에 표시될 대표 이미지, 필수)</label>
+        <input type="file" id="fThumb" accept="image/*" ${it?'':'required'}>
+        ${it ? `<img src="${it.thumbnailUrl}" style="width:100px;margin-top:8px;border-radius:4px;">`:''}
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="fFeatured" ${it&&it.featured?'checked':''}>
+        <label for="fFeatured" style="margin:0;">메인 히어로 배너로 노출</label>
+      </div>
+      <button type="submit" class="admin-submit">${it?'수정 저장':'항목 추가'}</button>
+      ${it?`<button type="button" class="admin-cancel" onclick="editingId=null; renderAddForm();">새 항목 추가로 전환</button>`:''}
+    </form>`;
+
+  function toggleTypeFields(){
+    const t = document.getElementById('fType').value;
+    document.getElementById('youtubeField').classList.toggle('hidden', t!=='youtube');
+    document.getElementById('photoField').classList.toggle('hidden', t!=='photo');
+  }
+  document.getElementById('fType').onchange = toggleTypeFields;
+  toggleTypeFields();
+
+  document.getElementById('itemForm').onsubmit = async (e)=>{
+    e.preventDefault();
+    const statusEl = document.getElementById('formStatus');
+    const submitBtn = e.target.querySelector('.admin-submit');
+    submitBtn.disabled = true; submitBtn.textContent = '저장 중...';
+    try{
+      const type = document.getElementById('fType').value;
+      const title = document.getElementById('fTitle').value.trim();
+      const category = document.getElementById('fCategory').value.trim() || '기타';
+      const description = document.getElementById('fDesc').value.trim();
+      const featured = document.getElementById('fFeatured').checked;
+      if(!title) throw new Error('제목을 입력해주세요.');
+
+      let youtubeId = it ? it.youtubeId : null;
+      if(type === 'youtube'){
+        const url = document.getElementById('fYoutubeUrl').value.trim();
+        if(url){ youtubeId = extractYoutubeId(url); if(!youtubeId) throw new Error('유효한 유튜브 링크가 아닙니다.'); }
+        if(!youtubeId) throw new Error('유튜브 링크를 입력해주세요.');
+      }
+
+      let images = it && it.images ? it.images : [];
+      if(type === 'photo'){
+        const files = document.getElementById('fImages').files;
+        if(files.length > 0){
+          statusEl.innerHTML = `<div class="status-msg ok">사진 업로드 중 (${files.length}장)...</div>`;
+          images = await Promise.all([...files].map(f=>uploadToCloudinary(f)));
+        }
+        if(images.length === 0) throw new Error('사진을 1장 이상 업로드해주세요.');
+      }
+
+      let thumbnailUrl = it ? it.thumbnailUrl : null;
+      const thumbFile = document.getElementById('fThumb').files[0];
+      if(thumbFile){
+        statusEl.innerHTML = `<div class="status-msg ok">썸네일 업로드 중...</div>`;
+        thumbnailUrl = await uploadToCloudinary(thumbFile);
+      } else if(!thumbnailUrl && type === 'photo' && images.length){
+        thumbnailUrl = images[0];
+      }
+      if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
+
+      const payload = { title, category, description, type, featured, thumbnailUrl };
+      if(type === 'youtube'){ payload.youtubeId = youtubeId; payload.images = []; }
+      else { payload.images = images; payload.youtubeId = null; }
+
+      if(editingId){
+        await db.collection('items').doc(editingId).update(payload);
+        statusEl.innerHTML = `<div class="status-msg ok">수정되었습니다.</div>`;
+      } else {
+        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection('items').add(payload);
+        statusEl.innerHTML = `<div class="status-msg ok">추가되었습니다.</div>`;
+        e.target.reset();
+        editingId = null;
+      }
+    }catch(err){
+      statusEl.innerHTML = `<div class="status-msg err">오류: ${esc(err.message)}</div>`;
+    }finally{
+      submitBtn.disabled = false; submitBtn.textContent = editingId ? '수정 저장' : '항목 추가';
+    }
+  };
+}
+
+async function deleteItem(id){
+  if(!confirm('이 항목을 삭제하시겠습니까?')) return;
+  try{
+    await db.collection('items').doc(id).delete();
+    if(document.getElementById('tabList')) renderAdminList();
+  }catch(err){
+    alert('삭제 실패: ' + err.message);
+  }
+}
+</script>
+</body>
+</html>
