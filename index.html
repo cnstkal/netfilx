@@ -23,7 +23,7 @@ html{scroll-behavior:smooth;}
 body{
   background:var(--bg); color:var(--white);
   font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
-  overflow-x:hidden;
+  overflow-x:hidden; letter-spacing:-0.02em;
 }
 ::-webkit-scrollbar{height:8px; width:8px;}
 ::-webkit-scrollbar-thumb{background:#333; border-radius:4px;}
@@ -108,7 +108,7 @@ img{display:block;}
 .row-arrow{display:none;}
 
 .card{
-  flex:0 0 auto; width:100%; height:430px; position:relative; border-radius:2px; overflow:hidden; cursor:pointer;
+  flex:0 0 auto; width:100%; aspect-ratio:16/9; height:auto; position:relative; border-radius:2px; overflow:hidden; cursor:pointer;
   background:#222; transition:transform .25s ease, z-index 0s; transform-origin:center;
 }
 .card:hover{transform:scale(1.12); z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.7);}
@@ -135,23 +135,12 @@ img{display:block;}
 .grid-view .card{width:100%; flex:none;}
 
 /* TOP 10 RANK ROW */
-.top-row{display:flex; flex-direction:column; gap:22px; padding:4px 40px 10px;}
-.top-item{display:flex; align-items:center; gap:18px; cursor:pointer;}
-.top-item .rank{font-family:'Bebas Neue', sans-serif; font-size:54px; color:#3a3a3a; -webkit-text-stroke:1px #666; width:56px; text-align:center; flex-shrink:0;}
-.top-item .top-thumb{width:210px; height:118px; border-radius:4px; overflow:hidden; flex-shrink:0; background:#222;}
-.top-item .top-thumb img{width:100%; height:100%; object-fit:cover; transition:transform .25s;}
-.top-item:hover .top-thumb img{transform:scale(1.06);}
-.top-item .top-meta .t-title{font-size:15px; font-weight:700; margin-bottom:4px;}
-.top-item .top-meta .t-date{font-size:12px; color:var(--gray);}
-@media(max-width:768px){
-  .top-item .top-thumb{width:130px; height:74px;}
-  .top-item .rank{font-size:38px; width:40px;}
-  .top-row{padding:4px 16px 10px;}
-}
+
 
 /* MODAL (detail) */
 .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px;}
 .modal-box{background:var(--panel); width:100%; max-width:780px; max-height:88vh; overflow-y:auto; border-radius:8px; position:relative;}
+.modal-box.video-modal{max-width:1400px; width:94vw; background:#000;}
 .modal-close{position:absolute; top:14px; right:14px; z-index:10; background:var(--black); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:18px;}
 .modal-media{width:100%; aspect-ratio:16/9; background:#000; position:relative;}
 .modal-media iframe, .modal-media img{width:100%; height:100%; object-fit:contain; border:none;}
@@ -206,7 +195,7 @@ img{display:block;}
   .hero-content h1{font-size:38px;} .hero-content{padding:0 16px 40px;}
   .row-title, .row-track{padding-left:16px; padding-right:16px;}
   .row-track{grid-template-columns:repeat(2,1fr); gap:12px;}
-  .card{height:230px;} .card:hover{transform:scale(1.04);}
+  .card:hover{transform:scale(1.04);}
   .admin-box, .modal-box{max-width:96vw;}
   #searchResultsTitle{padding-left:16px;}
   .grid-view{padding:20px 16px;}
@@ -305,10 +294,7 @@ function applyProfileImages(){
     }
   });
 }
-db.collection('settings').doc('profiles').onSnapshot(doc=>{
-  PROFILE_IMAGES = (doc.exists && doc.data().images) || {};
-  applyProfileImages();
-});
+
 
 /* ===================== PROFILE GATE ===================== */
 function chooseProfile(name){
@@ -432,28 +418,10 @@ function posterRowHtml(title, items, rowId){
       </div>
     </div>`;
 }
-function topTenHtml(items){
-  if(!items.length) return '';
-  const top = items.slice(0, 10);
-  return `<div class="row">
-      <div class="row-title">오늘의 대한민국 TOP ${top.length} 시리즈</div>
-      <div class="top-row">
-        ${top.map((it,i)=>`
-          <div class="top-item" onclick="openDetail('${it.id}')">
-            <div class="rank">${i+1}</div>
-            <div class="top-thumb"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>
-            <div class="top-meta">
-              <div class="t-title">${esc(it.title)}</div>
-              <div class="t-date">${fmtDate(it.createdAt)}</div>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-}
-function recommendedItems(pItems){
+function recommendedItems(pItems, usedIds){
   const likedCats = new Set(pItems.filter(i=>wishlist.has(i.id)).map(i=>i.category));
   return pItems
-    .filter(i=>!wishlist.has(i.id))
+    .filter(i=>!usedIds.has(i.id))
     .sort((a,b)=>(likedCats.has(b.category)?1:0)-(likedCats.has(a.category)?1:0))
     .slice(0,10);
 }
@@ -466,12 +434,12 @@ function renderRows(){
   }
   const grouped = groupByCategory(pItems);
   const wishedItems = pItems.filter(i=>wishlist.has(i.id));
-  const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean);
+  const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean).filter(i=>!wishlist.has(i.id));
+  const usedIds = new Set([...wishedItems, ...recentItems].map(i=>i.id));
 
   let html = '';
-  html += topTenHtml(pItems);
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems(pItems));
+  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems(pItems, usedIds));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   html += Object.entries(grouped).map(([cat, items])=>
     posterRowHtml(cat, items, 'row-'+encodeURIComponent(cat))
@@ -529,6 +497,7 @@ function openDetail(id){
   saveProfileState();
   renderRows();
   const box = document.getElementById('modalBox');
+  box.className = 'modal-box' + (it.type==='youtube' ? ' video-modal' : '');
   let mediaHtml = '';
   let galleryHtml = '';
   if(it.type === 'youtube'){
@@ -559,7 +528,8 @@ function switchGalleryImg(url, el){
 }
 function closeDetail(){
   document.getElementById('modalOverlay').classList.add('hidden');
-  document.getElementById('modalBox').innerHTML = '';
+  const box = document.getElementById('modalBox');
+  box.innerHTML = ''; box.className = 'modal-box';
 }
 document.getElementById('modalOverlay').addEventListener('click', e=>{
   if(e.target.id === 'modalOverlay') closeDetail();
@@ -569,7 +539,10 @@ document.getElementById('modalOverlay').addEventListener('click', e=>{
 let dataLoaded = false;
 db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
   dataLoaded = true;
-  ITEMS = snap.docs.map(d=>({id:d.id, ...d.data()}));
+  ITEMS = snap.docs.filter(d=>d.id!=='_profileSettings').map(d=>({id:d.id, ...d.data()}));
+  const settingsDoc = snap.docs.find(d=>d.id==='_profileSettings');
+  PROFILE_IMAGES = settingsDoc ? (settingsDoc.data().images||{}) : PROFILE_IMAGES;
+  applyProfileImages();
   renderAll();
 }, err=>{
   dataLoaded = true;
@@ -666,7 +639,7 @@ function renderProfileForm(){
       for(const inp of document.querySelectorAll('.fProfileImg')){
         if(inp.files[0]) updates[inp.dataset.p] = await uploadToCloudinary(inp.files[0]);
       }
-      await db.collection('settings').doc('profiles').set({images:updates}, {merge:true});
+      await db.collection('items').doc('_profileSettings').set({images:updates, createdAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
       statusEl.innerHTML = `<div class="status-msg ok">저장되었습니다.</div>`;
     }catch(err){
       statusEl.innerHTML = `<div class="status-msg err">오류: ${esc(err.message)}</div>`;
