@@ -6,8 +6,13 @@
 <title>MYFLIX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<link rel="preload" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" onload="this.onload=null;this.rel='stylesheet'">
+<noscript>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+</noscript>
 <style>
 :root{
   --black:#0a0a0a; --bg:#141414; --panel:#181818; --panel2:#232323;
@@ -17,7 +22,7 @@
 html{scroll-behavior:smooth;}
 body{
   background:var(--bg); color:var(--white);
-  font-family:'Pretendard', sans-serif;
+  font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
   overflow-x:hidden;
 }
 ::-webkit-scrollbar{height:8px; width:8px;}
@@ -235,6 +240,7 @@ img{display:block;}
   <div class="nav-right">
     <input type="text" id="searchInput" placeholder="제목 검색">
     <button class="icon-btn" id="searchBtn">🔍</button>
+    <button class="icon-btn" id="profileSwitchBtn" title="프로필 전환">🍊</button>
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -275,6 +281,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
 
 /* ===================== STATE ===================== */
 let ITEMS = [];
@@ -284,6 +291,8 @@ let currentGalleryImages = [];
 let wishlist = new Set();
 let recentlyViewed = [];
 let currentProfile = null;
+const PROFILES = ['자몽','블루베리','사과'];
+const PROFILE_EMOJI = {'자몽':'🍊','블루베리':'🫐','사과':'🍏'};
 
 /* ===================== PROFILE GATE ===================== */
 function chooseProfile(name){
@@ -292,9 +301,13 @@ function chooseProfile(name){
     wishlist = new Set(JSON.parse(localStorage.getItem('myflix_wish_'+name) || '[]'));
     recentlyViewed = JSON.parse(localStorage.getItem('myflix_recent_'+name) || '[]');
   }catch(e){ wishlist = new Set(); recentlyViewed = []; }
+  document.getElementById('profileSwitchBtn').textContent = PROFILE_EMOJI[name] || '👤';
   document.getElementById('profileGate').classList.add('hidden');
   renderAll();
 }
+document.getElementById('profileSwitchBtn').onclick = ()=>{
+  document.getElementById('profileGate').classList.remove('hidden');
+};
 function saveProfileState(){
   if(!currentProfile) return;
   localStorage.setItem('myflix_wish_'+currentProfile, JSON.stringify([...wishlist]));
@@ -327,6 +340,10 @@ function fmtDate(ts){
 }
 
 /* ===================== RENDER: NAV / HERO / ROWS ===================== */
+function profileItems(){
+  if(!currentProfile) return ITEMS;
+  return ITEMS.filter(it => !it.profiles || it.profiles.length===0 || it.profiles.includes(currentProfile));
+}
 function groupByCategory(items){
   const map = {};
   items.forEach(it=>{
@@ -338,7 +355,7 @@ function groupByCategory(items){
 }
 
 function renderNavCategories(){
-  const cats = [...new Set(ITEMS.map(i=>i.category || '기타'))];
+  const cats = [...new Set(profileItems().map(i=>i.category || '기타'))];
   const wrap = document.getElementById('navCategories');
   wrap.innerHTML = cats.map(c=>`<span data-cat="${esc(c)}">${esc(c)}</span>`).join('');
   wrap.querySelectorAll('span').forEach(s=>{
@@ -352,7 +369,8 @@ function renderNavCategories(){
 function renderHero(){
   const hero = document.getElementById('hero');
   hero.classList.remove('hidden');
-  const featured = ITEMS.find(i=>i.featured) || ITEMS[0];
+  const pItems = profileItems();
+  const featured = pItems.find(i=>i.featured) || pItems[0];
   if(!featured){
     hero.style.backgroundImage = 'none';
     hero.innerHTML = `<div class="empty-hero"><div><h2>아직 등록된 콘텐츠가 없습니다</h2><p style="color:#999;margin-top:8px;">관리자로 로그인해서 첫 콘텐츠를 추가해보세요.</p></div></div>`;
@@ -425,24 +443,28 @@ function topTenHtml(items){
       </div>
     </div>`;
 }
-function recommendedItems(){
-  const likedCats = new Set(ITEMS.filter(i=>wishlist.has(i.id)).map(i=>i.category));
-  return ITEMS
+function recommendedItems(pItems){
+  const likedCats = new Set(pItems.filter(i=>wishlist.has(i.id)).map(i=>i.category));
+  return pItems
     .filter(i=>!wishlist.has(i.id))
     .sort((a,b)=>(likedCats.has(b.category)?1:0)-(likedCats.has(a.category)?1:0))
     .slice(0,10);
 }
 function renderRows(){
   const rowsEl = document.getElementById('rows');
-  if(ITEMS.length === 0){ rowsEl.innerHTML=''; return; }
-  const grouped = groupByCategory(ITEMS);
-  const wishedItems = ITEMS.filter(i=>wishlist.has(i.id));
-  const recentItems = recentlyViewed.map(id=>ITEMS.find(i=>i.id===id)).filter(Boolean);
+  const pItems = profileItems();
+  if(pItems.length === 0){
+    rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">이 프로필에 등록된 콘텐츠가 없습니다. 관리자 패널에서 이 프로필에 항목을 추가해보세요.</p>';
+    return;
+  }
+  const grouped = groupByCategory(pItems);
+  const wishedItems = pItems.filter(i=>wishlist.has(i.id));
+  const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean);
 
   let html = '';
-  html += topTenHtml(ITEMS);
+  html += topTenHtml(pItems);
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems());
+  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems(pItems));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   html += Object.entries(grouped).map(([cat, items])=>
     posterRowHtml(cat, items, 'row-'+encodeURIComponent(cat))
@@ -482,7 +504,7 @@ function doSearch(q){
   }
   hero.classList.add('hidden');
   titleEl.classList.remove('hidden');
-  const results = ITEMS.filter(i => (i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  const results = profileItems().filter(i => (i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
   titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
   rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
 }
@@ -550,7 +572,7 @@ db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
 // 데이터가 없거나 응답이 늦어도 스피너가 무한 로딩처럼 보이지 않도록 안전장치
 setTimeout(()=>{
   if(!dataLoaded) renderAll();
-}, 3000);
+}, 1500);
 
 /* ===================== NAV SCROLL EFFECT ===================== */
 window.addEventListener('scroll', ()=>{
@@ -627,7 +649,7 @@ function renderAdminList(){
       <img src="${it.thumbnailUrl}">
       <div style="flex:1;">
         <div class="ali-title">${esc(it.title)}</div>
-        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':'사진'}</div>
+        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
       </div>
       <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
       <button class="ali-btn danger" onclick="deleteItem('${it.id}')">삭제</button>
@@ -659,6 +681,15 @@ function renderAddForm(){
         <label>카테고리 (직접 입력 가능)</label>
         <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
         <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+      </div>
+      <div class="field">
+        <label>노출할 프로필 (선택 안 하면 전체 프로필에 노출)</label>
+        <div class="check-row" style="gap:16px;">
+          ${PROFILES.map(p=>{
+            const checked = it ? (it.profiles||[]).includes(p) : (p===currentProfile);
+            return `<label style="display:flex;align-items:center;gap:5px;margin:0;font-size:13px;color:#ccc;"><input type="checkbox" class="fProfile" value="${p}" ${checked?'checked':''}>${PROFILE_EMOJI[p]||''} ${p}</label>`;
+          }).join('')}
+        </div>
       </div>
       <div class="field"><label>설명</label><textarea id="fDesc">${it?esc(it.description||''):''}</textarea></div>
       <div class="field" id="youtubeField">
@@ -731,7 +762,8 @@ function renderAddForm(){
       }
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
-      const payload = { title, category, description, type, featured, thumbnailUrl };
+      const profiles = [...document.querySelectorAll('.fProfile:checked')].map(el=>el.value);
+      const payload = { title, category, description, type, featured, thumbnailUrl, profiles };
       if(type === 'youtube'){ payload.youtubeId = youtubeId; payload.images = []; }
       else { payload.images = images; payload.youtubeId = null; }
 
