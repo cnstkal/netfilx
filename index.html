@@ -81,6 +81,7 @@ img{display:block;}
   position:relative; height:80vh; min-height:420px; width:100%;
   background-size:cover; background-position:center top; display:flex; align-items:flex-end;
 }
+.hero-video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border:none; pointer-events:none;}
 #hero::after{
   content:''; position:absolute; inset:0;
   background:linear-gradient(0deg, var(--bg) 0%, rgba(20,20,20,.2) 55%, rgba(20,20,20,.1) 100%),
@@ -217,17 +218,14 @@ img{display:block;}
 <div id="profileGate">
   <h1>시청할 프로필을 선택하세요</h1>
   <div class="profile-list">
-    <div class="profile-item" onclick="chooseProfile('자몽')">
-      <div class="profile-avatar" style="background:radial-gradient(circle at 35% 30%, #ffb199, #e6664a);">🍊</div>
-      <span>자몽</span>
+    <div class="profile-item" onclick="chooseProfile('오렌지')">
+      <div class="profile-avatar" id="pgAvatar-오렌지" style="background:radial-gradient(circle at 35% 30%, #ffb199, #e6664a);">🍊</div>
     </div>
     <div class="profile-item" onclick="chooseProfile('블루베리')">
-      <div class="profile-avatar" style="background:radial-gradient(circle at 35% 30%, #6f7fe0, #2b2f8c);">🫐</div>
-      <span>블루베리</span>
+      <div class="profile-avatar" id="pgAvatar-블루베리" style="background:radial-gradient(circle at 35% 30%, #6f7fe0, #2b2f8c);">🫐</div>
     </div>
     <div class="profile-item" onclick="chooseProfile('사과')">
-      <div class="profile-avatar" style="background:radial-gradient(circle at 35% 30%, #c9f2b0, #6fae4e);">🍏</div>
-      <span>사과</span>
+      <div class="profile-avatar" id="pgAvatar-사과" style="background:radial-gradient(circle at 35% 30%, #c9f2b0, #6fae4e);">🍏</div>
     </div>
   </div>
 </div>
@@ -237,13 +235,13 @@ img{display:block;}
     <span class="logo" id="logoBtn">MYFLIX</span>
     <div id="navCategories">
       <span data-p="블루베리" onclick="chooseProfile('블루베리')">홈</span>
-      <span data-p="자몽" onclick="chooseProfile('자몽')">시리즈</span>
+      <span data-p="오렌지" onclick="chooseProfile('오렌지')">시리즈</span>
       <span data-p="사과" onclick="chooseProfile('사과')">인기 시리즈</span>
     </div>
   </div>
   <div class="nav-right">
     <input type="text" id="searchInput" placeholder="제목 검색">
-    <button class="icon-btn" id="searchBtn">🔍</button>
+    <button class="icon-btn" id="searchBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -294,8 +292,23 @@ let currentGalleryImages = [];
 let wishlist = new Set();
 let recentlyViewed = [];
 let currentProfile = null;
-const PROFILES = ['자몽','블루베리','사과'];
-const PROFILE_EMOJI = {'자몽':'🍊','블루베리':'🫐','사과':'🍏'};
+const PROFILES = ['오렌지','블루베리','사과'];
+const PROFILE_EMOJI = {'오렌지':'🍊','블루베리':'🫐','사과':'🍏'};
+let PROFILE_IMAGES = {};
+function applyProfileImages(){
+  PROFILES.forEach(p=>{
+    const el = document.getElementById('pgAvatar-'+p);
+    if(!el) return;
+    if(PROFILE_IMAGES[p]){
+      el.style.background = `center/cover no-repeat url('${PROFILE_IMAGES[p]}')`;
+      el.textContent = '';
+    }
+  });
+}
+db.collection('settings').doc('profiles').onSnapshot(doc=>{
+  PROFILE_IMAGES = (doc.exists && doc.data().images) || {};
+  applyProfileImages();
+});
 
 /* ===================== PROFILE GATE ===================== */
 function chooseProfile(name){
@@ -364,9 +377,15 @@ function renderHero(){
     hero.innerHTML = `<div class="empty-hero"><div><h2>아직 등록된 콘텐츠가 없습니다</h2><p style="color:#999;margin-top:8px;">관리자로 로그인해서 첫 콘텐츠를 추가해보세요.</p></div></div>`;
     return;
   }
-  hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
   const wished = wishlist.has(featured.id);
-  hero.innerHTML = `
+  let heroVideo = '';
+  if(featured.type === 'youtube' && featured.youtubeId){
+    hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
+    heroVideo = `<iframe class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
+  } else {
+    hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
+  }
+  hero.innerHTML = heroVideo + `
     <div class="hero-content">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
         <span style="color:var(--red);font-weight:900;font-size:20px;font-family:'Bebas Neue';">N</span>
@@ -612,6 +631,7 @@ function openAdminPanel(){
     <div class="admin-tabs">
       <button class="admin-tab active" id="tabAdd" onclick="switchAdminTab('add')">항목 추가/수정</button>
       <button class="admin-tab" id="tabList" onclick="switchAdminTab('list')">전체 목록 (${ITEMS.length})</button>
+      <button class="admin-tab" id="tabProfiles" onclick="switchAdminTab('profiles')">프로필 이미지</button>
     </div>
     <div id="adminTabContent"></div>
     <button class="admin-cancel" onclick="isAdmin=false; document.getElementById('adminBtn').textContent='관리자'; renderRows(); closeAdmin();">로그아웃</button>`;
@@ -621,8 +641,39 @@ function openAdminPanel(){
 function switchAdminTab(tab){
   document.getElementById('tabAdd').classList.toggle('active', tab==='add');
   document.getElementById('tabList').classList.toggle('active', tab==='list');
+  document.getElementById('tabProfiles').classList.toggle('active', tab==='profiles');
   if(tab==='add') renderAddForm();
-  else renderAdminList();
+  else if(tab==='list') renderAdminList();
+  else renderProfileForm();
+}
+function renderProfileForm(){
+  const content = document.getElementById('adminTabContent');
+  content.innerHTML = `
+    <div id="profileFormStatus"></div>
+    ${PROFILES.map(p=>`
+      <div class="field">
+        <label>${PROFILE_EMOJI[p]} ${p} 프로필 이미지</label>
+        ${PROFILE_IMAGES[p]?`<img src="${PROFILE_IMAGES[p]}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block;">`:''}
+        <input type="file" accept="image/*" data-p="${p}" class="fProfileImg">
+      </div>`).join('')}
+    <button type="button" class="admin-submit" id="saveProfileImgsBtn">저장</button>`;
+  document.getElementById('saveProfileImgsBtn').onclick = async ()=>{
+    const statusEl = document.getElementById('profileFormStatus');
+    const btn = document.getElementById('saveProfileImgsBtn');
+    btn.disabled = true; btn.textContent = '저장 중...';
+    try{
+      const updates = {...PROFILE_IMAGES};
+      for(const inp of document.querySelectorAll('.fProfileImg')){
+        if(inp.files[0]) updates[inp.dataset.p] = await uploadToCloudinary(inp.files[0]);
+      }
+      await db.collection('settings').doc('profiles').set({images:updates}, {merge:true});
+      statusEl.innerHTML = `<div class="status-msg ok">저장되었습니다.</div>`;
+    }catch(err){
+      statusEl.innerHTML = `<div class="status-msg err">오류: ${esc(err.message)}</div>`;
+    }finally{
+      btn.disabled = false; btn.textContent = '저장';
+    }
+  };
 }
 function renderAdminList(){
   const content = document.getElementById('adminTabContent');
