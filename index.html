@@ -95,7 +95,7 @@ img{display:block;}
 .btn-play:hover{background:rgba(255,255,255,.75);}
 .btn-info{background:rgba(109,109,110,.7); color:#fff;}
 .btn-info:hover{background:rgba(109,109,110,.4);}
-.empty-hero{display:flex; align-items:center; justify-content:center; height:100%; text-align:center; padding:20px;}
+.empty-hero{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px;}
 .empty-hero h2{font-family:'Bebas Neue',sans-serif; font-size:36px; color:var(--gray);}
 
 /* ROWS */
@@ -201,6 +201,11 @@ img{display:block;}
 @keyframes spin{to{transform:rotate(360deg);}}
 #searchResultsTitle{padding:100px 40px 10px; font-size:20px; font-weight:700;}
 
+@media(min-width:1600px){
+  #nav{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
+  .hero-content{padding-left:calc(50vw - 760px);}
+  .row-title, .row-track{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
+}
 @media(max-width:768px){
   #nav{padding:12px 16px;} #navCategories{display:none;}
   .hero-content h1{font-size:38px;} .hero-content{padding:0 16px 40px;}
@@ -235,12 +240,15 @@ img{display:block;}
 <nav id="nav">
   <div class="nav-left">
     <span class="logo" id="logoBtn">MYFLIX</span>
-    <div id="navCategories"></div>
+    <div id="navCategories">
+      <span data-p="블루베리" onclick="chooseProfile('블루베리')">홈</span>
+      <span data-p="자몽" onclick="chooseProfile('자몽')">시리즈</span>
+      <span data-p="사과" onclick="chooseProfile('사과')">인기 시리즈</span>
+    </div>
   </div>
   <div class="nav-right">
     <input type="text" id="searchInput" placeholder="제목 검색">
     <button class="icon-btn" id="searchBtn">🔍</button>
-    <button class="icon-btn" id="profileSwitchBtn" title="프로필 전환">🍊</button>
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -301,13 +309,10 @@ function chooseProfile(name){
     wishlist = new Set(JSON.parse(localStorage.getItem('myflix_wish_'+name) || '[]'));
     recentlyViewed = JSON.parse(localStorage.getItem('myflix_recent_'+name) || '[]');
   }catch(e){ wishlist = new Set(); recentlyViewed = []; }
-  document.getElementById('profileSwitchBtn').textContent = PROFILE_EMOJI[name] || '👤';
   document.getElementById('profileGate').classList.add('hidden');
+  document.querySelectorAll('#navCategories span').forEach(s=>s.style.fontWeight = s.dataset.p===name?'700':'400');
   renderAll();
 }
-document.getElementById('profileSwitchBtn').onclick = ()=>{
-  document.getElementById('profileGate').classList.remove('hidden');
-};
 function saveProfileState(){
   if(!currentProfile) return;
   localStorage.setItem('myflix_wish_'+currentProfile, JSON.stringify([...wishlist]));
@@ -352,18 +357,6 @@ function groupByCategory(items){
     map[cat].push(it);
   });
   return map;
-}
-
-function renderNavCategories(){
-  const cats = [...new Set(profileItems().map(i=>i.category || '기타'))];
-  const wrap = document.getElementById('navCategories');
-  wrap.innerHTML = cats.map(c=>`<span data-cat="${esc(c)}">${esc(c)}</span>`).join('');
-  wrap.querySelectorAll('span').forEach(s=>{
-    s.onclick = ()=>{
-      const el = document.getElementById('row-'+encodeURIComponent(s.dataset.cat));
-      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
-    };
-  });
 }
 
 function renderHero(){
@@ -478,7 +471,6 @@ function scrollRow(btn, dir){
 
 function renderAll(){
   document.getElementById('loadingWrap').classList.add('hidden');
-  renderNavCategories();
   renderHero();
   renderRows();
 }
