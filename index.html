@@ -522,7 +522,7 @@ function seriesGridHtml(title, items){
   if(!items.length) return '';
   return `<div class="row">
       <div class="row-title">${esc(title)}</div>
-      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${it.type==='series'?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
+      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${(it.type==='series'||it.type==='popular')?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
     </div>`;
 }
 function renderSeriesPage(){
@@ -569,7 +569,7 @@ function renderSeriesDetailPage(){
 }
 function renderPopularPage(){
   const rowsEl = document.getElementById('rows');
-  const items = profileItems().filter(i=>i.type==='series' && i.rank).sort((a,b)=>a.rank-b.rank).slice(0,7);
+  const items = profileItems().filter(i=>i.type==='popular' && i.rank).sort((a,b)=>a.rank-b.rank).slice(0,7);
   if(!items.length){
     rowsEl.innerHTML = '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 인기 시리즈가 없습니다.</p>';
     return;
@@ -628,7 +628,7 @@ function renderAll(){
     document.getElementById('hero').classList.add('hidden');
     rowsEl.classList.add('no-hero');
     const series = ITEMS.find(i=>i.id===currentSeriesId);
-    if(series && series.rank) renderPopularSeriesDetailPage(series);
+    if(series && series.type==='popular') renderPopularSeriesDetailPage(series);
     else renderSeriesDetailPage();
     return;
   }
@@ -848,7 +848,7 @@ function renderAdminList(){
       <img src="${it.thumbnailUrl}">
       <div style="flex:1;">
         <div class="ali-title">${esc(it.title)}</div>
-        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
+        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
       </div>
       <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
       <button class="ali-btn danger" onclick="deleteItem('${it.id}')">삭제</button>
@@ -874,6 +874,7 @@ function renderAddForm(){
           <option value="youtube" ${it&&it.type==='youtube'?'selected':''}>유튜브 영상</option>
           <option value="photo" ${it&&it.type==='photo'?'selected':''}>사진</option>
           <option value="series" ${it&&it.type==='series'?'selected':''}>시리즈 (표지)</option>
+          <option value="popular" ${it&&it.type==='popular'?'selected':''}>인기 시리즈 (TOP7)</option>
         </select>
       </div>
       <div class="field"><label>제목 (사진 항목은 선택사항)</label><input type="text" id="fTitle" value="${it?esc(it.title):''}"></div>
@@ -881,7 +882,7 @@ function renderAddForm(){
         <label>소속 시리즈 (선택, 지정 시 해당 시리즈의 시즌별 에피소드로 등록됩니다)</label>
         <select id="fSeriesId">
           <option value="">없음 (독립 항목)</option>
-          ${ITEMS.filter(i=>i.type==='series' && i.id!==editingId).map(s=>`<option value="${s.id}" ${it&&it.seriesId===s.id?'selected':''}>${esc(s.title)}</option>`).join('')}
+          ${ITEMS.filter(i=>(i.type==='series'||i.type==='popular') && i.id!==editingId).map(s=>`<option value="${s.id}" ${it&&it.seriesId===s.id?'selected':''}>${esc(s.title)}</option>`).join('')}
         </select>
       </div>
       <div class="field" id="seasonField">
@@ -901,9 +902,9 @@ function renderAddForm(){
         <input type="text" id="fLink" value="${it?esc(it.link||''):''}" placeholder="https://...">
       </div>
       <div class="field" id="rankField">
-        <label>인기 시리즈 순위 (지정하면 인기 시리즈 TOP7에 노출, 선택)</label>
+        <label>순위 (TOP7 노출 순서)</label>
         <select id="fRank">
-          <option value="">순위 없음</option>
+          <option value="">순위 선택</option>
           ${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${it&&String(it.rank)===String(n)?'selected':''}>${n}위</option>`).join('')}
         </select>
       </div>
@@ -927,7 +928,7 @@ function renderAddForm(){
         <input type="text" id="fYoutubeUrl" value="${it&&it.youtubeId?'https://youtu.be/'+it.youtubeId:''}" placeholder="https://youtu.be/...">
       </div>
       <div class="field">
-        <label>썸네일 이미지 (유튜브는 비워두면 영상 썸네일 자동 사용)</label>
+        <label id="fThumbLabel">썸네일 이미지 (유튜브는 비워두면 영상 썸네일 자동 사용)</label>
         <input type="file" id="fThumb" accept="image/*" ${it?'':'required'}>
         ${it ? `<img src="${it.thumbnailUrl}" style="width:100px;margin-top:8px;border-radius:4px;">`:''}
       </div>
@@ -946,13 +947,18 @@ function renderAddForm(){
   }
   function toggleTypeFields(){
     const t = document.getElementById('fType').value;
+    const isGroup = t==='series' || t==='popular';
     document.getElementById('youtubeField').classList.toggle('hidden', t!=='youtube');
-    document.getElementById('seriesLinkField').classList.toggle('hidden', t==='series');
-    document.getElementById('linkField').classList.toggle('hidden', t==='series');
-    document.getElementById('seasonField').classList.toggle('hidden', t==='series');
-    document.getElementById('rankField').classList.toggle('hidden', t!=='series');
+    document.getElementById('seriesLinkField').classList.toggle('hidden', isGroup);
+    document.getElementById('linkField').classList.toggle('hidden', isGroup);
+    document.getElementById('seasonField').classList.toggle('hidden', isGroup);
+    document.getElementById('rankField').classList.toggle('hidden', t!=='popular');
+    document.getElementById('fRank').required = (t==='popular');
+    document.getElementById('fThumbLabel').textContent = t==='popular'
+      ? '포스터 이미지 (세로 2:3 비율로 자동 고정 표시됩니다)'
+      : '썸네일 이미지 (유튜브는 비워두면 영상 썸네일 자동 사용)';
     document.getElementById('fThumb').required = !it && t!=='youtube';
-    if(t!=='series') toggleSeasonField();
+    if(!isGroup) toggleSeasonField();
   }
   document.getElementById('fType').onchange = toggleTypeFields;
   document.getElementById('fSeriesId').onchange = toggleSeasonField;
@@ -969,7 +975,7 @@ function renderAddForm(){
       const category = document.getElementById('fCategory').value.trim() || '기타';
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
-      if((type==='youtube'||type==='series') && !title) throw new Error('제목을 입력해주세요.');
+      if((type==='youtube'||type==='series'||type==='popular') && !title) throw new Error('제목을 입력해주세요.');
 
       let youtubeId = it ? it.youtubeId : null;
       if(type === 'youtube'){
@@ -993,9 +999,12 @@ function renderAddForm(){
       if(type === 'youtube'){ payload.youtubeId = youtubeId; }
       else { payload.youtubeId = null; }
       if(type === 'series'){
+        payload.seriesId = null; payload.season = null; payload.link = null; payload.rank = null;
+      } else if(type === 'popular'){
         payload.seriesId = null; payload.season = null; payload.link = null;
         const rankVal = document.getElementById('fRank').value;
-        payload.rank = rankVal ? Number(rankVal) : null;
+        if(!rankVal) throw new Error('순위를 선택해주세요.');
+        payload.rank = Number(rankVal);
       } else {
         const sId = document.getElementById('fSeriesId').value;
         payload.seriesId = sId || null;
