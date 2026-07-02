@@ -259,23 +259,25 @@ img{display:block;}
   .row-title, .row-track, .series-grid{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
 }
 @media(max-width:768px){
-  #nav{padding:10px 16px 8px; flex-wrap:wrap;}
-  .nav-left{display:contents;}
+  #nav{padding:10px 16px 8px; flex-wrap:wrap !important;}
+  .nav-left{display:contents !important;}
   .logo{order:1;}
   .nav-right{order:2; margin-left:auto;}
   #navCategories{
-    order:3; display:flex; width:100%; margin-top:10px; gap:18px; overflow-x:auto;
+    order:3 !important; display:flex !important; width:100% !important; margin-top:10px; gap:18px;
+    overflow-x:auto !important; visibility:visible !important; opacity:1 !important; height:auto !important;
     scrollbar-width:none; -ms-overflow-style:none;
   }
   #navCategories::-webkit-scrollbar{display:none;}
-  #navCategories span{flex:0 0 auto;}
-  #hero{height:auto; aspect-ratio:16/9; min-height:0;}
-  .hero-video{display:none;}
-  .hero-content h1{font-size:30px;} .hero-content{padding:0 16px 20px;}
-  .hero-content p{font-size:13px; margin-bottom:14px;}
+  #navCategories span{flex:0 0 auto; font-size:14px; font-weight:600; color:#e5e5e5;}
+  #hero{height:auto !important; aspect-ratio:16/9 !important; min-height:0 !important;}
+  .hero-video{display:none !important;}
+  .hero-content h1{font-size:26px;} .hero-content{padding:0 16px 16px;}
+  .hero-content p{font-size:12px; margin-bottom:12px; -webkit-line-clamp:2;}
+  .hero-btns .btn{padding:8px 18px; font-size:13px;}
   .row-title, .row-track{padding-left:16px; padding-right:16px;}
-  .row-track{gap:10px;}
-  .card{flex:0 0 calc((100% - 2*10px)/3);}
+  .row-track{gap:8px; flex-wrap:nowrap !important;}
+  .card{flex:0 0 calc((100% - 2*8px)/3) !important; width:calc((100% - 2*8px)/3) !important;}
   .card:hover{transform:scale(1.04);}
   .row-arrow{display:none;}
   .admin-box, .modal-box{max-width:96vw;}
@@ -475,7 +477,8 @@ function renderHero(){
   }
   const wished = wishlist.has(featured.id);
   let heroVideo = '';
-  if(featured.type === 'youtube' && featured.youtubeId){
+  const isMobileView = window.innerWidth <= 768;
+  if(!isMobileView && featured.type === 'youtube' && featured.youtubeId){
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
     heroVideo = `<iframe class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
   } else {
