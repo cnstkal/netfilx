@@ -119,8 +119,26 @@ img{display:block;}
 .series-card img{width:100%; height:100%; object-fit:cover;}
 .series-card::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(0,0,0,.85) 0%, transparent 55%);}
 .series-card:hover{transform:scale(1.04);}
+.series-wrap{max-width:1600px; margin:0 auto; padding:0 90px;}
+.series-wrap .row-title{padding:0 0 12px; font-weight:600; font-size:20px;}
+.series-wrap .series-grid{padding:0; gap:24px;}
+.series-back{background:none; border:none; color:#ccc; font-size:14px; padding:16px 0 4px; cursor:pointer;}
+.series-back:hover{color:#fff;}
+.season-card{cursor:pointer;}
+.season-card img{width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:4px; background:#222; transition:transform .2s;}
+.season-card:hover img{transform:scale(1.03);}
+.season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
+.modal-link{display:inline-block; margin-top:14px; color:#4ea6ff; font-size:14px; text-decoration:underline; word-break:break-all;}
+.modal-photo-layout{display:flex; flex-wrap:wrap; align-items:stretch;}
+.modal-photo-layout .modal-media.photo-media{flex:1 1 55%; max-width:55%; max-height:90vh; background:#000;}
+.modal-photo-layout .modal-body{flex:1 1 40%; padding:40px;}
+@media(max-width:900px){
+  .modal-photo-layout{flex-direction:column;}
+  .modal-photo-layout .modal-media.photo-media, .modal-photo-layout .modal-body{max-width:100%;}
+}
 @media(max-width:768px){
   .series-grid{grid-template-columns:repeat(2,1fr); padding:0 16px; gap:12px;}
+  .series-wrap{padding:0 16px;}
 }
 .card .cinfo{
   position:absolute; left:0; right:0; bottom:0; padding:10px 8px; background:linear-gradient(0deg, rgba(0,0,0,.92), transparent);
@@ -291,6 +309,7 @@ let currentGalleryImages = [];
 let wishlist = new Set();
 let recentlyViewed = [];
 let currentProfile = null;
+let currentSeriesId = null;
 const PROFILES = ['오렌지','블루베리','사과'];
 const PROFILE_EMOJI = {'오렌지':'🍊','블루베리':'🫐','사과':'🍏'};
 let PROFILE_IMAGES = {};
@@ -309,6 +328,7 @@ function applyProfileImages(){
 /* ===================== PROFILE GATE ===================== */
 function chooseProfile(name){
   currentProfile = name;
+  currentSeriesId = null;
   try{
     wishlist = new Set(JSON.parse(localStorage.getItem('myflix_wish_'+name) || '[]'));
     recentlyViewed = JSON.parse(localStorage.getItem('myflix_recent_'+name) || '[]');
@@ -454,18 +474,46 @@ function seriesGridHtml(title, items){
   if(!items.length) return '';
   return `<div class="row">
       <div class="row-title">${esc(title)}</div>
-      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="openDetail('${it.id}')"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
+      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${it.type==='series'?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
     </div>`;
 }
 function renderSeriesPage(){
   const rowsEl = document.getElementById('rows');
-  const pItems = profileItems();
+  const pItems = profileItems().filter(i=>!i.seriesId);
   if(pItems.length === 0){
     rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 콘텐츠가 없습니다.</p>';
     return;
   }
   const grouped = groupByCategory(pItems);
-  rowsEl.innerHTML = Object.entries(grouped).map(([cat, items])=>seriesGridHtml(cat, items)).join('');
+  rowsEl.innerHTML = `<div class="series-wrap">${Object.entries(grouped).map(([cat, items])=>seriesGridHtml(cat, items)).join('')}</div>`;
+}
+function seasonRowHtml(label, items){
+  if(!items.length) return '';
+  return `<div class="row">
+      <div class="row-title">${label}</div>
+      <div class="series-grid">${items.map(it=>`
+        <div class="season-card" onclick="openDetail('${it.id}')">
+          <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+          <div class="season-card-title">${esc(it.title)}</div>
+        </div>`).join('')}</div>
+    </div>`;
+}
+function openSeriesPage(id){
+  currentSeriesId = id;
+  document.getElementById('searchResultsTitle').classList.add('hidden');
+  renderAll();
+  window.scrollTo({top:0});
+}
+function renderSeriesDetailPage(){
+  const rowsEl = document.getElementById('rows');
+  const episodes = profileItems().filter(i=>i.seriesId===currentSeriesId);
+  const s1 = episodes.filter(i=>(i.season||'1')==='1');
+  const s2 = episodes.filter(i=>i.season==='2');
+  rowsEl.innerHTML = `<div class="series-wrap">
+      <button class="series-back" onclick="currentSeriesId=null; renderAll();">&larr; 뒤로</button>
+      ${seasonRowHtml('Season 1', s1)}${seasonRowHtml('Season 2', s2)}
+      ${!episodes.length ? '<p style="color:#999;padding:40px 0;text-align:center;">등록된 에피소드가 없습니다.</p>' : ''}
+    </div>`;
 }
 function scrollRow(btn, dir){
   const track = btn.parentElement.querySelector('.row-track');
@@ -475,6 +523,12 @@ function scrollRow(btn, dir){
 function renderAll(){
   document.getElementById('loadingWrap').classList.add('hidden');
   const rowsEl = document.getElementById('rows');
+  if(currentSeriesId){
+    document.getElementById('hero').classList.add('hidden');
+    rowsEl.classList.add('no-hero');
+    renderSeriesDetailPage();
+    return;
+  }
   if(currentProfile === '블루베리'){
     rowsEl.classList.remove('no-hero');
     renderHero();
@@ -512,6 +566,7 @@ function doSearch(q){
   rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
 }
 document.getElementById('logoBtn').onclick = ()=>{
+  currentSeriesId = null;
   document.getElementById('searchInput').value='';
   document.getElementById('searchInput').classList.remove('open');
   doSearch('');
@@ -539,15 +594,20 @@ function openDetail(id){
         `<img src="${url}" class="${idx===0?'active':''}" onclick="switchGalleryImg('${url}', this)">`).join('')}</div>`;
     }
   }
-  box.innerHTML = `
-    <button class="modal-close" onclick="closeDetail()">✕</button>
-    ${mediaHtml}
-    ${galleryHtml}
-    <div class="modal-body">
+  const linkHtml = it.link ? `<a class="modal-link" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.link)}</a>` : '';
+  const bodyHtml = `<div class="modal-body">
       ${it.title ? `<h2>${esc(it.title)}</h2>` : ''}
       <div class="modal-cat">${esc(it.category||'기타')}</div>
       <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
+      ${linkHtml}
     </div>`;
+  if(it.seriesId){
+    box.innerHTML = `<button class="modal-close" onclick="closeDetail()">✕</button>
+      <div class="modal-photo-layout">${mediaHtml}${bodyHtml}</div>`;
+  } else {
+    box.innerHTML = `<button class="modal-close" onclick="closeDetail()">✕</button>
+      ${mediaHtml}${galleryHtml}${bodyHtml}`;
+  }
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 function switchGalleryImg(url, el){
@@ -710,9 +770,28 @@ function renderAddForm(){
         <select id="fType">
           <option value="youtube" ${it&&it.type==='youtube'?'selected':''}>유튜브 영상</option>
           <option value="photo" ${it&&it.type==='photo'?'selected':''}>사진</option>
+          <option value="series" ${it&&it.type==='series'?'selected':''}>시리즈 (표지)</option>
         </select>
       </div>
       <div class="field"><label>제목 (사진 항목은 선택사항)</label><input type="text" id="fTitle" value="${it?esc(it.title):''}"></div>
+      <div class="field" id="seriesLinkField">
+        <label>소속 시리즈 (선택, 지정 시 해당 시리즈의 시즌별 에피소드로 등록됩니다)</label>
+        <select id="fSeriesId">
+          <option value="">없음 (독립 항목)</option>
+          ${ITEMS.filter(i=>i.type==='series' && i.id!==editingId).map(s=>`<option value="${s.id}" ${it&&it.seriesId===s.id?'selected':''}>${esc(s.title)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" id="seasonField">
+        <label>시즌</label>
+        <select id="fSeason">
+          <option value="1" ${!it||!it.season||it.season==='1'?'selected':''}>시즌 1</option>
+          <option value="2" ${it&&it.season==='2'?'selected':''}>시즌 2</option>
+        </select>
+      </div>
+      <div class="field" id="linkField">
+        <label>외부 링크 (선택, 상세페이지에 클릭 가능한 링크로 표시)</label>
+        <input type="text" id="fLink" value="${it?esc(it.link||''):''}" placeholder="https://...">
+      </div>
       <div class="field">
         <label>카테고리 (직접 입력 가능)</label>
         <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
@@ -745,11 +824,19 @@ function renderAddForm(){
       ${it?`<button type="button" class="admin-cancel" onclick="editingId=null; renderAddForm();">새 항목 추가로 전환</button>`:''}
     </form>`;
 
+  function toggleSeasonField(){
+    document.getElementById('seasonField').classList.toggle('hidden', !document.getElementById('fSeriesId').value);
+  }
   function toggleTypeFields(){
     const t = document.getElementById('fType').value;
     document.getElementById('youtubeField').classList.toggle('hidden', t!=='youtube');
+    document.getElementById('seriesLinkField').classList.toggle('hidden', t==='series');
+    document.getElementById('linkField').classList.toggle('hidden', t==='series');
+    document.getElementById('seasonField').classList.toggle('hidden', t==='series');
+    if(t!=='series') toggleSeasonField();
   }
   document.getElementById('fType').onchange = toggleTypeFields;
+  document.getElementById('fSeriesId').onchange = toggleSeasonField;
   toggleTypeFields();
 
   document.getElementById('itemForm').onsubmit = async (e)=>{
@@ -763,7 +850,7 @@ function renderAddForm(){
       const category = document.getElementById('fCategory').value.trim() || '기타';
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
-      if(type==='youtube' && !title) throw new Error('제목을 입력해주세요.');
+      if((type==='youtube'||type==='series') && !title) throw new Error('제목을 입력해주세요.');
 
       let youtubeId = it ? it.youtubeId : null;
       if(type === 'youtube'){
@@ -784,6 +871,14 @@ function renderAddForm(){
       const payload = { title, category, description, type, featured, thumbnailUrl, profiles, images: [] };
       if(type === 'youtube'){ payload.youtubeId = youtubeId; }
       else { payload.youtubeId = null; }
+      if(type === 'series'){
+        payload.seriesId = null; payload.season = null; payload.link = null;
+      } else {
+        const sId = document.getElementById('fSeriesId').value;
+        payload.seriesId = sId || null;
+        payload.season = sId ? document.getElementById('fSeason').value : null;
+        payload.link = document.getElementById('fLink').value.trim() || null;
+      }
 
       if(editingId){
         await db.collection('items').doc(editingId).update(payload);
