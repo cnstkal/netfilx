@@ -580,11 +580,7 @@ window.addEventListener('scroll', ()=>{
 });
 
 /* ===================== AUTH / ADMIN ===================== */
-auth.onAuthStateChanged(user=>{
-  isAdmin = !!user;
-  document.getElementById('adminBtn').textContent = isAdmin ? '관리자 패널' : '관리자';
-  renderRows();
-});
+document.getElementById('adminBtn').textContent = isAdmin ? '관리자 패널' : '관리자';
 document.getElementById('adminBtn').onclick = ()=> isAdmin ? openAdminPanel() : openLoginForm();
 document.getElementById('adminOverlay').addEventListener('click', e=>{
   if(e.target.id === 'adminOverlay') closeAdmin();
@@ -595,28 +591,28 @@ function closeAdmin(){
   editingId = null;
 }
 
+const ADMIN_PASSWORD = '2026';
 function openLoginForm(){
   document.getElementById('adminBox').innerHTML = `
     <button class="modal-close" onclick="closeAdmin()">✕</button>
     <h2>관리자 로그인</h2>
     <div id="loginStatus"></div>
     <form id="loginForm">
-      <div class="field"><label>이메일</label><input type="email" id="loginEmail" required></div>
       <div class="field"><label>비밀번호</label><input type="password" id="loginPassword" required></div>
       <button type="submit" class="admin-submit">로그인</button>
-    </form>
-    <p style="font-size:12px;color:#888;margin-top:14px;">Firebase 콘솔 &gt; Authentication &gt; Email/Password 로 관리자 계정을 먼저 생성해주세요.</p>`;
+    </form>`;
   document.getElementById('adminOverlay').classList.remove('hidden');
-  document.getElementById('loginForm').onsubmit = async (e)=>{
+  document.getElementById('loginForm').onsubmit = (e)=>{
     e.preventDefault();
-    const email = document.getElementById('loginEmail').value;
     const pw = document.getElementById('loginPassword').value;
     const statusEl = document.getElementById('loginStatus');
-    try{
-      await auth.signInWithEmailAndPassword(email, pw);
+    if(pw === ADMIN_PASSWORD){
+      isAdmin = true;
+      document.getElementById('adminBtn').textContent = '관리자 패널';
+      renderRows();
       openAdminPanel();
-    }catch(err){
-      statusEl.innerHTML = `<div class="status-msg err">로그인 실패: ${esc(err.message)}</div>`;
+    }else{
+      statusEl.innerHTML = `<div class="status-msg err">비밀번호가 틀렸습니다</div>`;
     }
   };
 }
@@ -631,7 +627,7 @@ function openAdminPanel(){
       <button class="admin-tab" id="tabList" onclick="switchAdminTab('list')">전체 목록 (${ITEMS.length})</button>
     </div>
     <div id="adminTabContent"></div>
-    <button class="admin-cancel" onclick="auth.signOut(); closeAdmin();">로그아웃</button>`;
+    <button class="admin-cancel" onclick="isAdmin=false; document.getElementById('adminBtn').textContent='관리자'; renderRows(); closeAdmin();">로그아웃</button>`;
   document.getElementById('adminOverlay').classList.remove('hidden');
   switchAdminTab('add');
 }
