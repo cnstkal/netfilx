@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MYFLIX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <style>
 :root{
   --black:#0a0a0a; --bg:#141414; --panel:#181818; --panel2:#232323;
@@ -15,7 +17,7 @@
 html{scroll-behavior:smooth;}
 body{
   background:var(--bg); color:var(--white);
-  font-family:'Noto Sans KR', sans-serif;
+  font-family:'Pretendard', sans-serif;
   overflow-x:hidden;
 }
 ::-webkit-scrollbar{height:8px; width:8px;}
@@ -281,10 +283,22 @@ let editingId = null;
 let currentGalleryImages = [];
 let wishlist = new Set();
 let recentlyViewed = [];
+let currentProfile = null;
 
 /* ===================== PROFILE GATE ===================== */
 function chooseProfile(name){
+  currentProfile = name;
+  try{
+    wishlist = new Set(JSON.parse(localStorage.getItem('myflix_wish_'+name) || '[]'));
+    recentlyViewed = JSON.parse(localStorage.getItem('myflix_recent_'+name) || '[]');
+  }catch(e){ wishlist = new Set(); recentlyViewed = []; }
   document.getElementById('profileGate').classList.add('hidden');
+  renderAll();
+}
+function saveProfileState(){
+  if(!currentProfile) return;
+  localStorage.setItem('myflix_wish_'+currentProfile, JSON.stringify([...wishlist]));
+  localStorage.setItem('myflix_recent_'+currentProfile, JSON.stringify(recentlyViewed));
 }
 
 /* ===================== HELPERS ===================== */
@@ -378,6 +392,7 @@ function cardHtml(it){
 }
 function toggleWishlist(id){
   if(wishlist.has(id)) wishlist.delete(id); else wishlist.add(id);
+  saveProfileState();
   renderAll();
 }
 
@@ -410,6 +425,13 @@ function topTenHtml(items){
       </div>
     </div>`;
 }
+function recommendedItems(){
+  const likedCats = new Set(ITEMS.filter(i=>wishlist.has(i.id)).map(i=>i.category));
+  return ITEMS
+    .filter(i=>!wishlist.has(i.id))
+    .sort((a,b)=>(likedCats.has(b.category)?1:0)-(likedCats.has(a.category)?1:0))
+    .slice(0,10);
+}
 function renderRows(){
   const rowsEl = document.getElementById('rows');
   if(ITEMS.length === 0){ rowsEl.innerHTML=''; return; }
@@ -420,6 +442,7 @@ function renderRows(){
   let html = '';
   html += topTenHtml(ITEMS);
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
+  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems());
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   html += Object.entries(grouped).map(([cat, items])=>
     posterRowHtml(cat, items, 'row-'+encodeURIComponent(cat))
@@ -475,6 +498,7 @@ function openDetail(id){
   const it = ITEMS.find(i=>i.id===id);
   if(!it) return;
   recentlyViewed = [id, ...recentlyViewed.filter(x=>x!==id)].slice(0,10);
+  saveProfileState();
   renderRows();
   const box = document.getElementById('modalBox');
   let mediaHtml = '';
@@ -514,12 +538,19 @@ document.getElementById('modalOverlay').addEventListener('click', e=>{
 });
 
 /* ===================== FIRESTORE LIVE SYNC ===================== */
+let dataLoaded = false;
 db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
+  dataLoaded = true;
   ITEMS = snap.docs.map(d=>({id:d.id, ...d.data()}));
   renderAll();
 }, err=>{
+  dataLoaded = true;
   document.getElementById('loadingWrap').innerHTML = `<p style="color:#e50914;padding:20px;">데이터를 불러오지 못했습니다: ${esc(err.message)}<br>Firestore 보안 규칙 및 콘솔 설정을 확인해주세요.</p>`;
 });
+// 데이터가 없거나 응답이 늦어도 스피너가 무한 로딩처럼 보이지 않도록 안전장치
+setTimeout(()=>{
+  if(!dataLoaded) renderAll();
+}, 3000);
 
 /* ===================== NAV SCROLL EFFECT ===================== */
 window.addEventListener('scroll', ()=>{
