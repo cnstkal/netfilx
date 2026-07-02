@@ -129,6 +129,9 @@ img{display:block;}
 .series-back{background:none; border:none; color:#ccc; font-size:14px; padding:16px 0 24px; cursor:pointer; display:block;}
 .series-back:hover{color:#fff;}
 .season-card{cursor:pointer;}
+.season-block .row-title{text-align:left;}
+.season-track{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
+.season-track .season-card{flex:0 0 220px;}
 .season-card img{width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:4px; background:#222; transition:transform .2s;}
 .season-card:hover img{transform:scale(1.03);}
 .season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
@@ -542,9 +545,9 @@ function renderSeriesPage(){
 }
 function seasonRowHtml(label, items){
   if(!items.length) return '';
-  return `<div class="row">
+  return `<div class="row season-block">
       <div class="row-title">${label}</div>
-      <div class="series-grid">${items.map(it=>`
+      <div class="season-track">${items.map(it=>`
         <div class="season-card" onclick="openDetail('${it.id}')">
           <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
           <div class="season-card-title">${esc(it.title)}</div>
