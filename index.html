@@ -459,10 +459,10 @@ function renderHero(){
   }
   hero.innerHTML = heroVideo + `
     <div class="hero-content">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-        <span style="color:var(--red);font-weight:900;font-size:20px;font-family:'Bebas Neue';">N</span>
-        <span style="font-size:13px;letter-spacing:2px;color:#ddd;">SERIES</span>
-      </div>
+      ${featured.homeCategory==='오직 넷플릭스에서' ? `<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:10px;">
+        <span style="color:var(--red);font-weight:900;font-size:20px;font-family:'Bebas Neue';line-height:1;">N</span>
+        <span style="font-size:13px;letter-spacing:2px;color:#ddd;line-height:1;">SERIES</span>
+      </div>` : ''}
       <h1>${esc(featured.title)}</h1>
       <p>${esc(featured.description||'')}</p>
       <div class="hero-btns">
@@ -518,7 +518,7 @@ function renderRows(){
 
   let html = '';
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>i.homeCategory===cat)));
+  cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>(i.homeCategory||HOME_CATEGORIES_DEFAULT[0])===cat)));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   rowsEl.innerHTML = html;
 }
