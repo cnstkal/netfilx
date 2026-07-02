@@ -100,7 +100,8 @@ img{display:block;}
 .empty-hero h2{font-family:'Bebas Neue',sans-serif; font-size:36px; color:var(--gray);}
 
 /* ROWS */
-#rows{position:relative; z-index:3; margin-top:-90px; padding-bottom:60px;}
+#rows{position:relative; z-index:3; padding-top:30px; padding-bottom:60px;}
+#rows.no-hero{padding-top:110px;}
 .row{margin-bottom:38px;}
 .row-title{font-size:19px; font-weight:700; padding:0 40px 8px; color:#e5e5e5;}
 .row-track-wrap{position:relative;}
@@ -113,7 +114,14 @@ img{display:block;}
 }
 .card:hover{transform:scale(1.12); z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.7);}
 .card img{width:100%; height:100%; object-fit:cover;}
-.card .badge{position:absolute; top:6px; right:6px; background:rgba(0,0,0,.6); font-size:10px; padding:2px 6px; border-radius:2px;}
+.series-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px; padding:0 40px;}
+.series-card{position:relative; aspect-ratio:2/3; border-radius:4px; overflow:hidden; cursor:pointer; background:#222; transition:transform .2s;}
+.series-card img{width:100%; height:100%; object-fit:cover;}
+.series-card::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(0,0,0,.85) 0%, transparent 55%);}
+.series-card:hover{transform:scale(1.04);}
+@media(max-width:768px){
+  .series-grid{grid-template-columns:repeat(2,1fr); padding:0 16px; gap:12px;}
+}
 .card .cinfo{
   position:absolute; left:0; right:0; bottom:0; padding:10px 8px; background:linear-gradient(0deg, rgba(0,0,0,.92), transparent);
   opacity:0; transition:opacity .2s; font-size:12px; font-weight:700;
@@ -387,7 +395,6 @@ function renderHero(){
 }
 
 function cardHtml(it){
-  const badge = it.type === 'youtube' ? '영상' : '사진';
   const adminBtns = isAdmin ? `<div class="admin-actions">
       <button class="admin-mini" onclick="event.stopPropagation(); openAdminForm('${it.id}')">수정</button>
       <button class="admin-mini" onclick="event.stopPropagation(); deleteItem('${it.id}')">삭제</button>
@@ -395,7 +402,6 @@ function cardHtml(it){
   const wished = wishlist.has(it.id);
   return `<div class="card" onclick="openDetail('${it.id}')">
       ${adminBtns}
-      <span class="badge">${badge}</span>
       <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
       <button class="wish-btn ${wished?'active':''}" onclick="event.stopPropagation(); toggleWishlist('${it.id}')">${wished?'✓':'+'}</button>
       <div class="cinfo">${esc(it.title)}</div>
@@ -432,7 +438,6 @@ function renderRows(){
     rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">이 프로필에 등록된 콘텐츠가 없습니다. 관리자 패널에서 이 프로필에 항목을 추가해보세요.</p>';
     return;
   }
-  const grouped = groupByCategory(pItems);
   const wishedItems = pItems.filter(i=>wishlist.has(i.id));
   const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean).filter(i=>!wishlist.has(i.id));
   const usedIds = new Set([...wishedItems, ...recentItems].map(i=>i.id));
@@ -441,10 +446,24 @@ function renderRows(){
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
   html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems(pItems, usedIds));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
-  html += Object.entries(grouped).map(([cat, items])=>
-    posterRowHtml(cat, items, 'row-'+encodeURIComponent(cat))
-  ).join('');
   rowsEl.innerHTML = html;
+}
+function seriesGridHtml(title, items){
+  if(!items.length) return '';
+  return `<div class="row">
+      <div class="row-title">${esc(title)}</div>
+      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="openDetail('${it.id}')"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
+    </div>`;
+}
+function renderSeriesPage(){
+  const rowsEl = document.getElementById('rows');
+  const pItems = profileItems();
+  if(pItems.length === 0){
+    rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 콘텐츠가 없습니다.</p>';
+    return;
+  }
+  const grouped = groupByCategory(pItems);
+  rowsEl.innerHTML = Object.entries(grouped).map(([cat, items])=>seriesGridHtml(cat, items)).join('');
 }
 function scrollRow(btn, dir){
   const track = btn.parentElement.querySelector('.row-track');
@@ -453,8 +472,16 @@ function scrollRow(btn, dir){
 
 function renderAll(){
   document.getElementById('loadingWrap').classList.add('hidden');
-  renderHero();
-  renderRows();
+  const rowsEl = document.getElementById('rows');
+  if(currentProfile === '블루베리'){
+    rowsEl.classList.remove('no-hero');
+    renderHero();
+    renderRows();
+  } else {
+    document.getElementById('hero').classList.add('hidden');
+    rowsEl.classList.add('no-hero');
+    renderSeriesPage();
+  }
 }
 
 /* ===================== SEARCH ===================== */
