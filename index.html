@@ -129,6 +129,29 @@ img{display:block;}
 .season-card:hover img{transform:scale(1.03);}
 .season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
 .modal-link{display:inline-block; margin-top:14px; color:#4ea6ff; font-size:14px; text-decoration:underline; word-break:break-all;}
+.top7-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:70px 40px; padding-top:10px;}
+.top7-card{position:relative; display:flex; align-items:flex-end; cursor:pointer; height:220px;}
+.top7-rank{font-family:'Bebas Neue',sans-serif; font-size:150px; line-height:1; color:transparent; -webkit-text-stroke:2px #4a4a4a; position:absolute; left:-6px; bottom:-18px; z-index:1; user-select:none;}
+.top7-card img{position:relative; z-index:2; width:65%; aspect-ratio:2/3; object-fit:cover; margin-left:auto; border-radius:4px; box-shadow:0 10px 25px rgba(0,0,0,.6); transition:transform .2s;}
+.top7-card:hover img{transform:scale(1.04);}
+@media(max-width:768px){.top7-grid{grid-template-columns:repeat(2,1fr); gap:50px 20px;} .top7-rank{font-size:100px;}}
+.pop-layout{display:flex; gap:40px; align-items:flex-start;}
+.pop-player{flex:1 1 55%; max-width:60%;}
+.pop-player iframe{width:100%; aspect-ratio:16/9; border:none; border-radius:4px; background:#000;}
+.pop-empty{aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; color:#888; background:#111; border-radius:4px;}
+.pop-main-info{padding:14px 4px;}
+.pop-main-info h3{font-size:18px; margin-bottom:4px; font-weight:600;}
+.pop-main-date{color:#999; font-size:13px;}
+.pop-side{flex:1 1 40%;}
+.pop-tabs{display:flex; gap:20px; margin-bottom:16px; font-size:16px; color:#888;}
+.pop-tab{cursor:pointer;}
+.pop-tab.active{color:#fff; font-weight:700; border-bottom:2px solid var(--red); padding-bottom:4px;}
+.pop-list-item{display:flex; align-items:center; gap:14px; padding:10px 0; cursor:pointer;}
+.pop-rank{font-size:20px; color:#888; width:24px; text-align:center; flex-shrink:0;}
+.pop-list-item img{width:100px; height:56px; object-fit:cover; border-radius:3px; flex-shrink:0; background:#222;}
+.pop-item-title{font-size:14px; font-weight:600;}
+.pop-item-date{font-size:12px; color:#888; margin-top:2px;}
+@media(max-width:900px){.pop-layout{flex-direction:column;} .pop-player{max-width:100%;}}
 .modal-photo-layout{display:flex; flex-wrap:wrap; align-items:stretch;}
 .modal-photo-layout .modal-media.photo-media{flex:1 1 55%; max-width:55%; max-height:90vh; background:#000;}
 .modal-photo-layout .modal-body{flex:1 1 40%; padding:40px;}
@@ -500,6 +523,7 @@ function seasonRowHtml(label, items){
 }
 function openSeriesPage(id){
   currentSeriesId = id;
+  currentPopularTab = '1';
   document.getElementById('searchResultsTitle').classList.add('hidden');
   renderAll();
   window.scrollTo({top:0});
@@ -515,6 +539,54 @@ function renderSeriesDetailPage(){
       ${!episodes.length ? '<p style="color:#999;padding:40px 0;text-align:center;">등록된 에피소드가 없습니다.</p>' : ''}
     </div>`;
 }
+function renderPopularPage(){
+  const rowsEl = document.getElementById('rows');
+  const items = profileItems().filter(i=>i.type==='series' && i.rank).sort((a,b)=>a.rank-b.rank).slice(0,7);
+  if(!items.length){
+    rowsEl.innerHTML = '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 인기 시리즈가 없습니다.</p>';
+    return;
+  }
+  rowsEl.innerHTML = `<div class="series-wrap">
+      <div class="row-title" style="font-size:24px;margin-bottom:10px;">오늘의 대한민국 TOP 7 시리즈</div>
+      <div class="top7-grid">${items.map(it=>`
+        <div class="top7-card" onclick="openSeriesPage('${it.id}')">
+          <span class="top7-rank">${it.rank}</span>
+          <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+        </div>`).join('')}</div>
+    </div>`;
+}
+let currentPopularTab = '1';
+function renderPopularSeriesDetailPage(series){
+  const rowsEl = document.getElementById('rows');
+  const episodes = profileItems().filter(i=>i.seriesId===series.id);
+  const groups = {'1':[], '2':[], '3':[]};
+  episodes.forEach(e=>{ const s = e.season||'1'; if(groups[s]) groups[s].push(e); });
+  const tabs = ['1','2','3'].filter(t=>groups[t].length);
+  if(!tabs.includes(currentPopularTab)) currentPopularTab = tabs[0] || '1';
+  const list = groups[currentPopularTab] || [];
+  const main = list[0];
+  const playerHtml = main
+    ? `<iframe src="https://www.youtube.com/embed/${main.youtubeId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+       <div class="pop-main-info"><h3>${esc(main.title)}</h3><div class="pop-main-date">${fmtDate(main.createdAt)}</div></div>`
+    : `<div class="pop-empty">등록된 영상이 없습니다.</div>`;
+  const tabsHtml = tabs.map(t=>`<span class="pop-tab ${t===currentPopularTab?'active':''}" onclick="currentPopularTab='${t}'; renderAll();">시리즈${t}</span>`).join('');
+  const listHtml = list.map((it,idx)=>`
+    <div class="pop-list-item" onclick="${idx===0?'void(0)':`window.open('https://youtu.be/${it.youtubeId}','_blank')`}">
+      <span class="pop-rank">${idx+1}</span>
+      <img src="${it.thumbnailUrl}" alt="${esc(it.title)}">
+      <div><div class="pop-item-title">${esc(it.title)}</div><div class="pop-item-date">${fmtDate(it.createdAt)}</div></div>
+    </div>`).join('');
+  rowsEl.innerHTML = `<div class="series-wrap">
+      <button class="series-back" onclick="currentSeriesId=null; renderAll();">&larr; 뒤로</button>
+      <div class="pop-layout">
+        <div class="pop-player">${playerHtml}</div>
+        <div class="pop-side">
+          <div class="pop-tabs">${tabsHtml}</div>
+          <div class="pop-list">${listHtml}</div>
+        </div>
+      </div>
+    </div>`;
+}
 function scrollRow(btn, dir){
   const track = btn.parentElement.querySelector('.row-track');
   track.scrollBy({left: dir*600, behavior:'smooth'});
@@ -526,7 +598,9 @@ function renderAll(){
   if(currentSeriesId){
     document.getElementById('hero').classList.add('hidden');
     rowsEl.classList.add('no-hero');
-    renderSeriesDetailPage();
+    const series = ITEMS.find(i=>i.id===currentSeriesId);
+    if(series && series.rank) renderPopularSeriesDetailPage(series);
+    else renderSeriesDetailPage();
     return;
   }
   if(currentProfile === '블루베리'){
@@ -536,7 +610,7 @@ function renderAll(){
   } else {
     document.getElementById('hero').classList.add('hidden');
     rowsEl.classList.add('no-hero');
-    renderSeriesPage();
+    if(currentProfile === '사과') renderPopularPage(); else renderSeriesPage();
   }
 }
 
@@ -782,15 +856,23 @@ function renderAddForm(){
         </select>
       </div>
       <div class="field" id="seasonField">
-        <label>시즌</label>
+        <label>그룹 (시즌1/2 또는 시리즈1~3으로 표시됨)</label>
         <select id="fSeason">
-          <option value="1" ${!it||!it.season||it.season==='1'?'selected':''}>시즌 1</option>
-          <option value="2" ${it&&it.season==='2'?'selected':''}>시즌 2</option>
+          <option value="1" ${!it||!it.season||it.season==='1'?'selected':''}>그룹 1</option>
+          <option value="2" ${it&&it.season==='2'?'selected':''}>그룹 2</option>
+          <option value="3" ${it&&it.season==='3'?'selected':''}>그룹 3</option>
         </select>
       </div>
       <div class="field" id="linkField">
         <label>외부 링크 (선택, 상세페이지에 클릭 가능한 링크로 표시)</label>
         <input type="text" id="fLink" value="${it?esc(it.link||''):''}" placeholder="https://...">
+      </div>
+      <div class="field" id="rankField">
+        <label>인기 시리즈 순위 (지정하면 인기 시리즈 TOP7에 노출, 선택)</label>
+        <select id="fRank">
+          <option value="">순위 없음</option>
+          ${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${it&&String(it.rank)===String(n)?'selected':''}>${n}위</option>`).join('')}
+        </select>
       </div>
       <div class="field">
         <label>카테고리 (직접 입력 가능)</label>
@@ -812,7 +894,7 @@ function renderAddForm(){
         <input type="text" id="fYoutubeUrl" value="${it&&it.youtubeId?'https://youtu.be/'+it.youtubeId:''}" placeholder="https://youtu.be/...">
       </div>
       <div class="field">
-        <label>썸네일 이미지 (카드/히어로에 표시될 대표 이미지, 필수)</label>
+        <label>썸네일 이미지 (유튜브는 비워두면 영상 썸네일 자동 사용)</label>
         <input type="file" id="fThumb" accept="image/*" ${it?'':'required'}>
         ${it ? `<img src="${it.thumbnailUrl}" style="width:100px;margin-top:8px;border-radius:4px;">`:''}
       </div>
@@ -833,6 +915,8 @@ function renderAddForm(){
     document.getElementById('seriesLinkField').classList.toggle('hidden', t==='series');
     document.getElementById('linkField').classList.toggle('hidden', t==='series');
     document.getElementById('seasonField').classList.toggle('hidden', t==='series');
+    document.getElementById('rankField').classList.toggle('hidden', t!=='series');
+    document.getElementById('fThumb').required = !it && t!=='youtube';
     if(t!=='series') toggleSeasonField();
   }
   document.getElementById('fType').onchange = toggleTypeFields;
@@ -864,6 +948,8 @@ function renderAddForm(){
       if(thumbFile){
         statusEl.innerHTML = `<div class="status-msg ok">썸네일 업로드 중...</div>`;
         thumbnailUrl = await uploadToCloudinary(thumbFile);
+      } else if(type==='youtube' && youtubeId && !thumbnailUrl){
+        thumbnailUrl = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
       }
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
@@ -873,11 +959,14 @@ function renderAddForm(){
       else { payload.youtubeId = null; }
       if(type === 'series'){
         payload.seriesId = null; payload.season = null; payload.link = null;
+        const rankVal = document.getElementById('fRank').value;
+        payload.rank = rankVal ? Number(rankVal) : null;
       } else {
         const sId = document.getElementById('fSeriesId').value;
         payload.seriesId = sId || null;
         payload.season = sId ? document.getElementById('fSeason').value : null;
         payload.link = document.getElementById('fLink').value.trim() || null;
+        payload.rank = null;
       }
 
       if(editingId){
