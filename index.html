@@ -103,17 +103,11 @@ img{display:block;}
 .row{margin-bottom:38px;}
 .row-title{font-size:19px; font-weight:700; padding:0 40px 8px; color:#e5e5e5;}
 .row-track-wrap{position:relative;}
-.row-track{display:flex; gap:6px; overflow-x:auto; padding:0 40px; scroll-behavior:smooth; scrollbar-width:none;}
-.row-track::-webkit-scrollbar{display:none;}
-.row-arrow{
-  position:absolute; top:0; bottom:0; width:48px; background:rgba(20,20,20,.6); border:none; color:#fff; font-size:24px;
-  z-index:5; opacity:0; transition:opacity .2s;
-}
-.row-track-wrap:hover .row-arrow{opacity:1;}
-.row-arrow.left{left:0;} .row-arrow.right{right:0;}
+.row-track{display:grid; grid-template-columns:repeat(4,1fr); gap:24px; padding:0 40px;}
+.row-arrow{display:none;}
 
 .card{
-  flex:0 0 170px; height:250px; position:relative; border-radius:4px; overflow:hidden; cursor:pointer;
+  flex:0 0 auto; width:100%; height:430px; position:relative; border-radius:2px; overflow:hidden; cursor:pointer;
   background:#222; transition:transform .25s ease, z-index 0s; transform-origin:center;
 }
 .card:hover{transform:scale(1.12); z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.7);}
@@ -210,7 +204,8 @@ img{display:block;}
   #nav{padding:12px 16px;} #navCategories{display:none;}
   .hero-content h1{font-size:38px;} .hero-content{padding:0 16px 40px;}
   .row-title, .row-track{padding-left:16px; padding-right:16px;}
-  .card{flex:0 0 120px; height:176px;} .card:hover{transform:scale(1.08);}
+  .row-track{grid-template-columns:repeat(2,1fr); gap:12px;}
+  .card{height:230px;} .card:hover{transform:scale(1.04);}
   .admin-box, .modal-box{max-width:96vw;}
   #searchResultsTitle{padding-left:16px;}
   .grid-view{padding:20px 16px;}
