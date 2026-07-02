@@ -114,8 +114,8 @@ img{display:block;}
 }
 .card:hover{transform:scale(1.12); z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.7);}
 .card img{width:100%; height:100%; object-fit:cover;}
-.series-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px; padding:0 40px;}
-.series-card{position:relative; aspect-ratio:2/3; border-radius:4px; overflow:hidden; cursor:pointer; background:#222; transition:transform .2s;}
+.series-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px; padding:0 60px;}
+.series-card{position:relative; aspect-ratio:9/16; border-radius:4px; overflow:hidden; cursor:pointer; background:#222; transition:transform .2s;}
 .series-card img{width:100%; height:100%; object-fit:cover;}
 .series-card::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg, rgba(0,0,0,.85) 0%, transparent 55%);}
 .series-card:hover{transform:scale(1.04);}
@@ -148,9 +148,11 @@ img{display:block;}
 /* MODAL (detail) */
 .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px;}
 .modal-box{background:var(--panel); width:100%; max-width:780px; max-height:88vh; overflow-y:auto; border-radius:8px; position:relative;}
-.modal-box.video-modal{max-width:1400px; width:94vw; background:#000;}
+.modal-box.modal-box-lg{max-width:1400px; width:94vw; background:#000;}
 .modal-close{position:absolute; top:14px; right:14px; z-index:10; background:var(--black); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:18px;}
 .modal-media{width:100%; aspect-ratio:16/9; background:#000; position:relative;}
+.modal-media.photo-media{aspect-ratio:auto; max-height:82vh; display:flex; align-items:center; justify-content:center;}
+.modal-media.photo-media img{width:auto; height:100%; max-height:82vh; max-width:100%;}
 .modal-media iframe, .modal-media img{width:100%; height:100%; object-fit:contain; border:none;}
 .modal-body{padding:24px 32px 32px;}
 .modal-body h2{font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:1px; margin-bottom:6px;}
@@ -196,7 +198,7 @@ img{display:block;}
 @media(min-width:1600px){
   #nav{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
   .hero-content{padding-left:calc(50vw - 760px);}
-  .row-title, .row-track{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
+  .row-title, .row-track, .series-grid{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
 }
 @media(max-width:768px){
   #nav{padding:12px 16px;} #navCategories{display:none;}
@@ -522,16 +524,16 @@ function openDetail(id){
   if(!it) return;
   recentlyViewed = [id, ...recentlyViewed.filter(x=>x!==id)].slice(0,10);
   saveProfileState();
-  renderRows();
+  if(currentProfile === '블루베리') renderRows();
   const box = document.getElementById('modalBox');
-  box.className = 'modal-box' + (it.type==='youtube' ? ' video-modal' : '');
+  box.className = 'modal-box modal-box-lg';
   let mediaHtml = '';
   let galleryHtml = '';
   if(it.type === 'youtube'){
     mediaHtml = `<div class="modal-media"><iframe src="https://www.youtube.com/embed/${it.youtubeId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></div>`;
   } else {
     currentGalleryImages = (it.images && it.images.length) ? it.images : [it.thumbnailUrl];
-    mediaHtml = `<div class="modal-media"><img id="mainGalleryImg" src="${currentGalleryImages[0]}" alt="${esc(it.title)}"></div>`;
+    mediaHtml = `<div class="modal-media photo-media"><img id="mainGalleryImg" src="${currentGalleryImages[0]}" alt="${esc(it.title)}"></div>`;
     if(currentGalleryImages.length > 1){
       galleryHtml = `<div class="gallery-strip">${currentGalleryImages.map((url,idx)=>
         `<img src="${url}" class="${idx===0?'active':''}" onclick="switchGalleryImg('${url}', this)">`).join('')}</div>`;
@@ -542,7 +544,7 @@ function openDetail(id){
     ${mediaHtml}
     ${galleryHtml}
     <div class="modal-body">
-      <h2>${esc(it.title)}</h2>
+      ${it.title ? `<h2>${esc(it.title)}</h2>` : ''}
       <div class="modal-cat">${esc(it.category||'기타')}</div>
       <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
     </div>`;
@@ -710,7 +712,7 @@ function renderAddForm(){
           <option value="photo" ${it&&it.type==='photo'?'selected':''}>사진</option>
         </select>
       </div>
-      <div class="field"><label>제목</label><input type="text" id="fTitle" value="${it?esc(it.title):''}" required></div>
+      <div class="field"><label>제목 (사진 항목은 선택사항)</label><input type="text" id="fTitle" value="${it?esc(it.title):''}"></div>
       <div class="field">
         <label>카테고리 (직접 입력 가능)</label>
         <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
@@ -730,11 +732,6 @@ function renderAddForm(){
         <label>유튜브 링크 (또는 영상 ID)</label>
         <input type="text" id="fYoutubeUrl" value="${it&&it.youtubeId?'https://youtu.be/'+it.youtubeId:''}" placeholder="https://youtu.be/...">
       </div>
-      <div class="field" id="photoField">
-        <label>사진 업로드 (여러 장 선택 가능, 상세보기 갤러리로 표시됨)</label>
-        <input type="file" id="fImages" accept="image/*" multiple>
-        ${it&&it.images&&it.images.length ? `<p style="font-size:12px;color:#888;margin-top:4px;">기존 ${it.images.length}장 등록됨. 새로 선택 시 교체됩니다.</p>`:''}
-      </div>
       <div class="field">
         <label>썸네일 이미지 (카드/히어로에 표시될 대표 이미지, 필수)</label>
         <input type="file" id="fThumb" accept="image/*" ${it?'':'required'}>
@@ -751,7 +748,6 @@ function renderAddForm(){
   function toggleTypeFields(){
     const t = document.getElementById('fType').value;
     document.getElementById('youtubeField').classList.toggle('hidden', t!=='youtube');
-    document.getElementById('photoField').classList.toggle('hidden', t!=='photo');
   }
   document.getElementById('fType').onchange = toggleTypeFields;
   toggleTypeFields();
@@ -767,7 +763,7 @@ function renderAddForm(){
       const category = document.getElementById('fCategory').value.trim() || '기타';
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
-      if(!title) throw new Error('제목을 입력해주세요.');
+      if(type==='youtube' && !title) throw new Error('제목을 입력해주세요.');
 
       let youtubeId = it ? it.youtubeId : null;
       if(type === 'youtube'){
@@ -776,30 +772,18 @@ function renderAddForm(){
         if(!youtubeId) throw new Error('유튜브 링크를 입력해주세요.');
       }
 
-      let images = it && it.images ? it.images : [];
-      if(type === 'photo'){
-        const files = document.getElementById('fImages').files;
-        if(files.length > 0){
-          statusEl.innerHTML = `<div class="status-msg ok">사진 업로드 중 (${files.length}장)...</div>`;
-          images = await Promise.all([...files].map(f=>uploadToCloudinary(f)));
-        }
-        if(images.length === 0) throw new Error('사진을 1장 이상 업로드해주세요.');
-      }
-
       let thumbnailUrl = it ? it.thumbnailUrl : null;
       const thumbFile = document.getElementById('fThumb').files[0];
       if(thumbFile){
         statusEl.innerHTML = `<div class="status-msg ok">썸네일 업로드 중...</div>`;
         thumbnailUrl = await uploadToCloudinary(thumbFile);
-      } else if(!thumbnailUrl && type === 'photo' && images.length){
-        thumbnailUrl = images[0];
       }
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
       const profiles = [...document.querySelectorAll('.fProfile:checked')].map(el=>el.value);
-      const payload = { title, category, description, type, featured, thumbnailUrl, profiles };
-      if(type === 'youtube'){ payload.youtubeId = youtubeId; payload.images = []; }
-      else { payload.images = images; payload.youtubeId = null; }
+      const payload = { title, category, description, type, featured, thumbnailUrl, profiles, images: [] };
+      if(type === 'youtube'){ payload.youtubeId = youtubeId; }
+      else { payload.youtubeId = null; }
 
       if(editingId){
         await db.collection('items').doc(editingId).update(payload);
