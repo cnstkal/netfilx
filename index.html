@@ -342,6 +342,8 @@ let recentlyViewed = [];
 let currentProfile = null;
 let currentSeriesId = null;
 const PROFILES = ['오렌지','블루베리','사과'];
+const HOME_CATEGORIES_DEFAULT = ['마음에 쏙 드실 거예요','회원님을 위해 엄선한 오늘의 콘텐츠','오직 넷플릭스에서','새로 올라온 콘텐츠','기억을 지우고 다시 보고 싶은 명작'];
+let heroPickId = null;
 const PROFILE_EMOJI = {'오렌지':'🍊','블루베리':'🫐','사과':'🍏'};
 let PROFILE_IMAGES = {};
 function applyProfileImages(){
@@ -361,19 +363,13 @@ function applyProfileImages(){
 function chooseProfile(name){
   currentProfile = name;
   currentSeriesId = null;
-  try{
-    wishlist = new Set(JSON.parse(localStorage.getItem('myflix_wish_'+name) || '[]'));
-    recentlyViewed = JSON.parse(localStorage.getItem('myflix_recent_'+name) || '[]');
-  }catch(e){ wishlist = new Set(); recentlyViewed = []; }
+  wishlist = new Set();
+  recentlyViewed = [];
   document.getElementById('profileGate').classList.add('hidden');
   document.querySelectorAll('#navCategories span').forEach(s=>s.style.fontWeight = s.dataset.p===name?'700':'400');
   renderAll();
 }
-function saveProfileState(){
-  if(!currentProfile) return;
-  localStorage.setItem('myflix_wish_'+currentProfile, JSON.stringify([...wishlist]));
-  localStorage.setItem('myflix_recent_'+currentProfile, JSON.stringify(recentlyViewed));
-}
+function saveProfileState(){ /* 새로고침 시 초기화되도록 저장하지 않음 (관리자 데이터는 Firestore로 별도 저장됨) */ }
 
 /* ===================== HELPERS ===================== */
 function extractYoutubeId(url){
@@ -444,7 +440,10 @@ function renderHero(){
   const hero = document.getElementById('hero');
   hero.classList.remove('hidden');
   const pItems = profileItems();
-  const featured = pItems.find(i=>i.featured) || pItems[0];
+  if(!pItems.some(i=>i.id===heroPickId)){
+    heroPickId = pItems.length ? pItems[Math.floor(Math.random()*pItems.length)].id : null;
+  }
+  const featured = pItems.find(i=>i.id===heroPickId);
   if(!featured){
     hero.style.backgroundImage = 'none';
     hero.innerHTML = `<div class="empty-hero"><div><h2>아직 등록된 콘텐츠가 없습니다</h2><p style="color:#999;margin-top:8px;">관리자로 로그인해서 첫 콘텐츠를 추가해보세요.</p></div></div>`;
@@ -503,13 +502,6 @@ function posterRowHtml(title, items, rowId){
       </div>
     </div>`;
 }
-function recommendedItems(pItems, usedIds){
-  const likedCats = new Set(pItems.filter(i=>wishlist.has(i.id)).map(i=>i.category));
-  return pItems
-    .filter(i=>!usedIds.has(i.id))
-    .sort((a,b)=>(likedCats.has(b.category)?1:0)-(likedCats.has(a.category)?1:0))
-    .slice(0,10);
-}
 function renderRows(){
   const rowsEl = document.getElementById('rows');
   const pItems = profileItems();
@@ -518,12 +510,15 @@ function renderRows(){
     return;
   }
   const wishedItems = pItems.filter(i=>wishlist.has(i.id));
-  const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean).filter(i=>!wishlist.has(i.id));
-  const usedIds = new Set([...wishedItems, ...recentItems].map(i=>i.id));
+  // 시청 중인 콘텐츠는 최대 4개까지만, 다른 카테고리에도 동시에 노출될 수 있는 유일한 예외
+  const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean).slice(0,4);
+
+  const cats = [...HOME_CATEGORIES_DEFAULT];
+  pItems.forEach(i=>{ if(i.homeCategory && !cats.includes(i.homeCategory)) cats.push(i.homeCategory); });
 
   let html = '';
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  html += posterRowHtml('마음에 쏙 드실 거예요', recommendedItems(pItems, usedIds));
+  cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>i.homeCategory===cat)));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   rowsEl.innerHTML = html;
 }
@@ -883,6 +878,7 @@ function openAdminForm(id){
 function renderAddForm(){
   const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
   const cats = [...new Set(ITEMS.map(i=>i.category||'기타'))];
+  const homeCats = [...new Set([...HOME_CATEGORIES_DEFAULT, ...ITEMS.map(i=>i.homeCategory).filter(Boolean)])];
   const content = document.getElementById('adminTabContent');
   content.innerHTML = `
     <div id="formStatus"></div>
@@ -947,6 +943,11 @@ function renderAddForm(){
         <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
         <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
       </div>
+      <div class="field" id="homeCatField">
+        <label>홈 화면(블루베리) 노출 줄 (직접 입력해서 새 줄 추가 가능, 비워두면 홈에 노출 안 됨)</label>
+        <input type="text" id="fHomeCat" list="homeCatList" value="${it?esc(it.homeCategory||''):''}" placeholder="예: 마음에 쏙 드실 거예요">
+        <datalist id="homeCatList">${homeCats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+      </div>
       <div class="field">
         <label>노출할 프로필 (선택 안 하면 전체 프로필에 노출)</label>
         <div class="check-row" style="gap:16px;">
@@ -986,6 +987,7 @@ function renderAddForm(){
     document.getElementById('castGenreField2').classList.toggle('hidden', !isPopularEp);
     document.getElementById('yearRuntimeField').classList.toggle('hidden', !isPopularEp);
     document.getElementById('categoryField').classList.toggle('hidden', isPopularEp);
+    document.getElementById('homeCatField').classList.toggle('hidden', isPopularEp);
     document.getElementById('linkField').classList.toggle('hidden', isPopularEp || t==='series' || t==='popular');
     document.getElementById('fDescLabel').textContent = isPopularEp ? '설명 (목록 카드에 표시, 보통 날짜)' : '설명';
   }
@@ -1016,6 +1018,7 @@ function renderAddForm(){
       const type = document.getElementById('fType').value;
       const title = document.getElementById('fTitle').value.trim();
       const category = document.getElementById('fCategory').value.trim() || '기타';
+      const homeCategory = document.getElementById('fHomeCat').value.trim() || null;
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
       if((type==='youtube'||type==='series') && !title) throw new Error('제목을 입력해주세요.');
@@ -1038,7 +1041,7 @@ function renderAddForm(){
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
       const profiles = [...document.querySelectorAll('.fProfile:checked')].map(el=>el.value);
-      const payload = { title, category, description, type, featured, thumbnailUrl, profiles, images: [] };
+      const payload = { title, category, homeCategory, description, type, featured, thumbnailUrl, profiles, images: [] };
       if(type === 'youtube'){ payload.youtubeId = youtubeId; }
       else { payload.youtubeId = null; }
       if(type === 'series'){
