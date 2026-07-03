@@ -142,13 +142,19 @@ img{display:block;}
 .season-card:hover img{transform:scale(1.03);}
 .season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
 .modal-link{display:inline-block; margin-top:14px; color:#4ea6ff; font-size:14px; text-decoration:underline; word-break:break-all;}
-.top7-grid{display:grid; grid-template-columns:repeat(3,max-content); justify-content:center; gap:40px 90px; padding-top:40px;}
+.top7-grid{display:grid; grid-template-columns:repeat(3,minmax(0,max-content)); justify-content:center; gap:40px 90px; padding-top:40px; max-width:100%; overflow:hidden;}
 .top7-grid .top7-card:nth-child(7){grid-column:2;}
-.top7-card{position:relative; display:flex; align-items:flex-end; cursor:pointer; --imgw:clamp(85px,9.5vw,130px);}
-.top7-rank{font-family:'Bebas Neue',sans-serif; color:transparent; -webkit-text-stroke:2px #4a4a4a; user-select:none; height:calc(var(--imgw) * 1.8); line-height:1; font-size:calc(var(--imgw) * 1.95); display:flex; align-items:flex-end; overflow:visible; margin-right:calc(var(--imgw) * -0.22);}
+.top7-card{position:relative; display:flex; align-items:flex-end; cursor:pointer; --imgw:clamp(85px,9.5vw,130px); --rankscale:1.95; max-width:100%;}
+.top7-rank{font-family:'Bebas Neue',sans-serif; color:transparent; -webkit-text-stroke:2px #4a4a4a; user-select:none; height:calc(var(--imgw) * 1.8); line-height:1; font-size:calc(var(--imgw) * var(--rankscale)); display:flex; align-items:flex-end; overflow:visible; margin-right:calc(var(--imgw) * -0.22);}
 .top7-card img{position:relative; z-index:2; width:var(--imgw); aspect-ratio:2/3; object-fit:cover; border-radius:4px; box-shadow:0 10px 25px rgba(0,0,0,.6); transition:transform .2s;}
 .top7-card:hover img{transform:scale(1.04);}
-@media(max-width:768px){.top7-grid{gap:30px 40px;} .top7-card{--imgw:clamp(70px,20vw,95px);}}
+@media(max-width:768px){
+  .top7-grid{gap:18px 6vw; padding-top:24px;}
+  .top7-card{--imgw:clamp(52px,14vw,80px); --rankscale:1.5;}
+}
+@media(max-width:380px){
+  .top7-card{--imgw:clamp(44px,13vw,68px);}
+}
 .pop-layout{display:flex; gap:40px; align-items:flex-start;}
 .pop-player{flex:1 1 55%; max-width:60%;}
 .pop-player iframe{width:100%; aspect-ratio:16/9; border:none; border-radius:4px; background:#000;}
