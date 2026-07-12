@@ -313,8 +313,7 @@ img{display:block;}
     </div>
   </div>
   <div class="nav-right">
-    <input type="text" id="searchInput" placeholder="제목 검색">
-    <button class="icon-btn" id="searchBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+    <input type="text" id="searchInput" class="open" placeholder="제목 검색">
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -684,12 +683,6 @@ function renderAll(){
 }
 
 /* ===================== SEARCH ===================== */
-document.getElementById('searchBtn').onclick = ()=>{
-  const input = document.getElementById('searchInput');
-  input.classList.toggle('open');
-  if(input.classList.contains('open')) input.focus();
-  else { input.value=''; doSearch(''); }
-};
 document.getElementById('searchInput').addEventListener('input', e=>doSearch(e.target.value));
 function doSearch(q){
   q = q.trim().toLowerCase();
@@ -711,7 +704,6 @@ function doSearch(q){
 document.getElementById('logoBtn').onclick = ()=>{
   currentSeriesId = null;
   document.getElementById('searchInput').value='';
-  document.getElementById('searchInput').classList.remove('open');
   doSearch('');
   window.scrollTo({top:0, behavior:'smooth'});
 };
@@ -900,6 +892,7 @@ function renderAdminList(){
         <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
       </div>
       <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
+      <button class="ali-btn" onclick="duplicateItem('${it.id}')">복제</button>
       <button class="ali-btn danger" onclick="deleteItem('${it.id}')">삭제</button>
     </div>`).join('');
 }
@@ -943,8 +936,8 @@ function renderAddForm(){
         </select>
       </div>
       <div class="field" id="orderField">
-        <label>순서 (숫자가 작을수록 먼저 표시·재생됨, 비워두면 등록순)</label>
-        <input type="number" id="fOrder" value="${it&&it.order!=null?it.order:''}" placeholder="예: 1">
+        <label>순서 (비워두면 자동으로 마지막 번호가 매겨집니다. 숫자 입력 시 그 자리에 끼워넣고, 기존 항목들은 번호가 하나씩 밀립니다)</label>
+        <input type="number" id="fOrder" value="${it&&it.order!=null?it.order:''}" placeholder="비워두면 자동 번호">
       </div>
       <div class="field" id="yearRuntimeField">
         <label>연도 / 러닝타임</label>
@@ -1145,8 +1138,24 @@ function renderAddForm(){
         payload.genre = document.getElementById('fGenre').value.trim() || null;
         payload.year = document.getElementById('fYear').value.trim() || null;
         payload.runtime = document.getElementById('fRuntime').value.trim() || null;
-        const orderVal = document.getElementById('fOrder').value;
-        payload.order = orderVal !== '' ? Number(orderVal) : null;
+        if(sId){
+          const groupItems = ITEMS.filter(i=>i.seriesId===sId && (i.season||'1')===payload.season && i.id!==editingId);
+          const orderVal = document.getElementById('fOrder').value;
+          const prevOrder = it ? it.order : null;
+          let newOrder;
+          if(orderVal !== ''){
+            newOrder = Number(orderVal);
+            if(newOrder !== prevOrder){
+              const toShift = groupItems.filter(i=>i.order!=null && i.order>=newOrder);
+              await Promise.all(toShift.map(i=>db.collection('items').doc(i.id).update({order:i.order+1})));
+            }
+          } else {
+            newOrder = groupItems.reduce((m,i)=> i.order!=null ? Math.max(m,i.order) : m, 0) + 1;
+          }
+          payload.order = newOrder;
+        } else {
+          payload.order = null;
+        }
       }
 
       if(editingId){
@@ -1172,6 +1181,20 @@ function renderAddForm(){
   };
 }
 
+async function duplicateItem(id){
+  const it = ITEMS.find(i=>i.id===id);
+  if(!it) return;
+  try{
+    const copy = {...it};
+    delete copy.id;
+    copy.title = copy.title ? copy.title + ' (사본)' : copy.title;
+    copy.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('items').add(copy);
+    if(document.getElementById('tabList')) renderAdminList();
+  }catch(err){
+    alert('복제 실패: ' + err.message);
+  }
+}
 async function deleteItem(id){
   if(!confirm('이 항목을 삭제하시겠습니까?')) return;
   try{
