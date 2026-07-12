@@ -372,6 +372,7 @@ const HOME_CATEGORIES_DEFAULT = ['마음에 쏙 드실 거예요','회원님을 
 let heroPickId = null;
 const PROFILE_EMOJI = {'오렌지':'🍊','블루베리':'🫐','사과':'🍏'};
 let PROFILE_IMAGES = {};
+let HOME_CATEGORIES = [...HOME_CATEGORIES_DEFAULT];
 function applyProfileImages(){
   PROFILES.forEach(p=>{
     const el = document.getElementById('pgAvatar-'+p);
@@ -539,12 +540,12 @@ function renderRows(){
   // 시청 중인 콘텐츠는 최대 4개까지만, 다른 카테고리에도 동시에 노출될 수 있는 유일한 예외
   const recentItems = recentlyViewed.map(id=>pItems.find(i=>i.id===id)).filter(Boolean).slice(0,4);
 
-  const cats = [...HOME_CATEGORIES_DEFAULT];
+  const cats = [...HOME_CATEGORIES];
   pItems.forEach(i=>{ if(i.homeCategory && !cats.includes(i.homeCategory)) cats.push(i.homeCategory); });
 
   let html = '';
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>(i.homeCategory||HOME_CATEGORIES_DEFAULT[0])===cat)));
+  cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>(i.homeCategory||HOME_CATEGORIES[0])===cat)));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   rowsEl.innerHTML = html;
 }
@@ -770,9 +771,11 @@ document.getElementById('modalOverlay').addEventListener('click', e=>{
 let dataLoaded = false;
 db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
   dataLoaded = true;
-  ITEMS = snap.docs.filter(d=>d.id!=='_profileSettings').map(d=>({id:d.id, ...d.data()}));
+  ITEMS = snap.docs.filter(d=>d.id!=='_profileSettings' && d.id!=='_homeCatSettings').map(d=>({id:d.id, ...d.data()}));
   const settingsDoc = snap.docs.find(d=>d.id==='_profileSettings');
   PROFILE_IMAGES = settingsDoc ? (settingsDoc.data().images||{}) : PROFILE_IMAGES;
+  const homeCatDoc = snap.docs.find(d=>d.id==='_homeCatSettings');
+  HOME_CATEGORIES = homeCatDoc && homeCatDoc.data().list ? homeCatDoc.data().list : HOME_CATEGORIES;
   applyProfileImages();
   renderAll();
 }, err=>{
@@ -910,7 +913,6 @@ function openAdminForm(id){
 function renderAddForm(){
   const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
   const cats = [...new Set(ITEMS.map(i=>i.category||'기타'))];
-  const homeCats = [...new Set([...HOME_CATEGORIES_DEFAULT, ...ITEMS.map(i=>i.homeCategory).filter(Boolean)])];
   const content = document.getElementById('adminTabContent');
   content.innerHTML = `
     <div id="formStatus"></div>
@@ -976,9 +978,19 @@ function renderAddForm(){
         <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
       </div>
       <div class="field" id="homeCatField">
-        <label>홈 화면(블루베리) 노출 줄 (직접 입력해서 새 줄 추가 가능, 비워두면 홈에 노출 안 됨)</label>
-        <input type="text" id="fHomeCat" list="homeCatList" value="${it?esc(it.homeCategory||''):''}" placeholder="예: 마음에 쏙 드실 거예요">
-        <datalist id="homeCatList">${homeCats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+        <label>홈 화면(블루베리) 노출 줄 (비워두면 홈에 노출 안 됨)</label>
+        <div style="display:flex;gap:6px;">
+          <select id="fHomeCat" style="flex:1;">
+            <option value="">(노출 안 함)</option>
+            ${HOME_CATEGORIES.map(c=>`<option value="${esc(c)}" ${it&&it.homeCategory===c?'selected':''}>${esc(c)}</option>`).join('')}
+          </select>
+          <button type="button" class="ali-btn" onclick="renameHomeCategory()">수정</button>
+          <button type="button" class="ali-btn danger" onclick="deleteHomeCategory()">삭제</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <input type="text" id="fNewHomeCat" placeholder="새 카테고리 이름 입력 후 추가" style="flex:1;">
+          <button type="button" class="ali-btn" onclick="addHomeCategory()">추가</button>
+        </div>
       </div>
       <div class="field">
         <label>노출할 프로필 (선택 안 하면 전체 프로필에 노출)</label>
@@ -1038,6 +1050,46 @@ function renderAddForm(){
     toggleSeasonField();
   }
   document.getElementById('fType').onchange = toggleTypeFields;
+  async function saveHomeCategories(){
+    await db.collection('items').doc('_homeCatSettings').set({list:HOME_CATEGORIES, createdAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+  }
+  window.addHomeCategory = async ()=>{
+    const input = document.getElementById('fNewHomeCat');
+    const name = input.value.trim();
+    if(!name) return;
+    if(HOME_CATEGORIES.includes(name)){ alert('이미 있는 카테고리입니다.'); return; }
+    HOME_CATEGORIES.push(name);
+    await saveHomeCategories();
+    renderAddForm();
+    document.getElementById('fHomeCat').value = name;
+  };
+  window.renameHomeCategory = async ()=>{
+    const sel = document.getElementById('fHomeCat');
+    const old = sel.value;
+    if(!old){ alert('수정할 카테고리를 선택해주세요.'); return; }
+    const name = prompt('새 이름을 입력하세요.', old);
+    if(!name || !name.trim() || name.trim()===old) return;
+    const newName = name.trim();
+    if(HOME_CATEGORIES.includes(newName)){ alert('이미 있는 카테고리입니다.'); return; }
+    HOME_CATEGORIES = HOME_CATEGORIES.map(c=>c===old?newName:c);
+    await saveHomeCategories();
+    const affected = ITEMS.filter(i=>i.homeCategory===old);
+    await Promise.all(affected.map(i=>db.collection('items').doc(i.id).update({homeCategory:newName})));
+    renderAddForm();
+    document.getElementById('fHomeCat').value = newName;
+  };
+  window.deleteHomeCategory = async ()=>{
+    const sel = document.getElementById('fHomeCat');
+    const old = sel.value;
+    if(!old){ alert('삭제할 카테고리를 선택해주세요.'); return; }
+    const affectedCount = ITEMS.filter(i=>i.homeCategory===old).length;
+    if(!confirm(`"${old}" 카테고리를 삭제하시겠습니까?${affectedCount?` (해당 카테고리로 지정된 항목 ${affectedCount}개는 홈 미노출로 변경됩니다)`:''}`)) return;
+    HOME_CATEGORIES = HOME_CATEGORIES.filter(c=>c!==old);
+    await saveHomeCategories();
+    const affected = ITEMS.filter(i=>i.homeCategory===old);
+    await Promise.all(affected.map(i=>db.collection('items').doc(i.id).update({homeCategory:null})));
+    renderAddForm();
+  };
   document.getElementById('fSeriesId').onchange = toggleSeasonField;
   toggleTypeFields();
 
