@@ -479,7 +479,7 @@ function renderHero(){
   let heroVideo = '';
   if(featured.type === 'youtube' && featured.youtubeId){
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
-    heroVideo = `<iframe class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
+    heroVideo = `<iframe class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=0&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
   } else {
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
   }
@@ -703,7 +703,7 @@ function doSearch(q){
   }
   hero.classList.add('hidden');
   titleEl.classList.remove('hidden');
-  const results = profileItems().filter(i => (i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  const results = profileItems().filter(i => i.type!=='series' && ((i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q)));
   titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
   rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
 }
@@ -880,10 +880,16 @@ function renderProfileForm(){
     }
   };
 }
+let adminListFilter = '전체';
 function renderAdminList(){
   const content = document.getElementById('adminTabContent');
-  if(ITEMS.length===0){ content.innerHTML = '<p style="color:#888;">등록된 항목이 없습니다.</p>'; return; }
-  content.innerHTML = ITEMS.map(it=>`
+  const list = adminListFilter==='전체' ? ITEMS : ITEMS.filter(it=>it.profiles && it.profiles.includes(adminListFilter));
+  const filterBtns = `<div class="admin-tabs" style="margin-bottom:14px;border-bottom:none;">
+    <button class="admin-tab ${adminListFilter==='전체'?'active':''}" onclick="adminListFilter='전체';renderAdminList();">전체</button>
+    ${PROFILES.map(p=>`<button class="admin-tab ${adminListFilter===p?'active':''}" onclick="adminListFilter='${p}';renderAdminList();">${PROFILE_EMOJI[p]} ${p}</button>`).join('')}
+  </div>`;
+  if(list.length===0){ content.innerHTML = filterBtns + '<p style="color:#888;">등록된 항목이 없습니다.</p>'; return; }
+  content.innerHTML = filterBtns + list.map(it=>`
     <div class="admin-list-item">
       <img src="${it.thumbnailUrl}">
       <div style="flex:1;">
