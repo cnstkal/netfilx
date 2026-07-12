@@ -65,11 +65,6 @@ img{display:block;}
 #navCategories span{cursor:pointer; opacity:.85; white-space:nowrap;}
 #navCategories span:hover{opacity:1; font-weight:700;}
 .nav-right{display:flex; align-items:center; gap:14px;}
-#searchInput{
-  width:0; opacity:0; padding:0; border:1px solid #fff; background:rgba(0,0,0,.75); color:#fff;
-  transition:width .3s ease, opacity .3s, padding .3s; font-size:14px; height:34px;
-}
-#searchInput.open{width:220px; opacity:1; padding:0 10px;}
 .icon-btn{background:none; border:none; color:#fff; font-size:18px;}
 #adminBtn{
   background:transparent; border:1px solid #666; color:#fff; padding:6px 14px; font-size:13px; border-radius:2px;
@@ -313,7 +308,6 @@ img{display:block;}
     </div>
   </div>
   <div class="nav-right">
-    <input type="text" id="searchInput" class="open" placeholder="제목 검색">
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -479,7 +473,7 @@ function renderHero(){
   let heroVideo = '';
   if(featured.type === 'youtube' && featured.youtubeId){
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
-    heroVideo = `<iframe class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=0&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
+    heroVideo = `<iframe id="heroVideoFrame" class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=0&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1&enablejsapi=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
   } else {
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
   }
@@ -497,6 +491,22 @@ function renderHero(){
       </div>
     </div>`;
 }
+let heroObserverInited = false;
+function initHeroObserver(){
+  if(heroObserverInited) return;
+  heroObserverInited = true;
+  const hero = document.getElementById('hero');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      const frame = document.getElementById('heroVideoFrame');
+      if(!frame || !frame.contentWindow) return;
+      const cmd = entry.isIntersecting ? 'playVideo' : 'pauseVideo';
+      frame.contentWindow.postMessage(JSON.stringify({event:'command', func:cmd, args:[]}), '*');
+    });
+  }, {threshold:0});
+  io.observe(hero);
+}
+initHeroObserver();
 
 function cardHtml(it){
   const adminBtns = isAdmin ? `<div class="admin-actions">
@@ -683,7 +693,6 @@ function renderAll(){
 }
 
 /* ===================== SEARCH ===================== */
-document.getElementById('searchInput').addEventListener('input', e=>doSearch(e.target.value));
 function doSearch(q){
   q = q.trim().toLowerCase();
   const hero = document.getElementById('hero');
@@ -703,7 +712,6 @@ function doSearch(q){
 }
 document.getElementById('logoBtn').onclick = ()=>{
   currentSeriesId = null;
-  document.getElementById('searchInput').value='';
   doSearch('');
   window.scrollTo({top:0, behavior:'smooth'});
 };
