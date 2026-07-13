@@ -349,6 +349,7 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
   </div>
   <div class="nav-right">
     <input type="text" id="searchInput" placeholder="제목 또는 카테고리 검색" oninput="doSearch(this.value)" style="background:rgba(0,0,0,.6);border:1px solid #666;color:#fff;padding:6px 10px;border-radius:4px;margin-right:10px;width:200px;">
+    <button id="randomBtn" onclick="pickRandomItem()" style="background:transparent;border:1px solid #666;color:#fff;padding:6px 14px;font-size:13px;border-radius:2px;margin-right:10px;">아무거나 보기 🎲</button>
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -517,14 +518,14 @@ function profileItems(){
   if(!currentProfile) return ITEMS;
   return ITEMS.filter(it => !it.profiles || it.profiles.length===0 || it.profiles.includes(currentProfile));
 }
-function groupByCategory(items){
-  const map = {};
-  items.forEach(it=>{
-    const cat = it.category || '기타';
-    if(!map[cat]) map[cat] = [];
-    map[cat].push(it);
-  });
-  return map;
+function renderSeriesPage(){
+  const rowsEl = document.getElementById('rows');
+  const pItems = profileItems().filter(i=>!i.seriesId);
+  if(pItems.length === 0){
+    rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 콘텐츠가 없습니다.</p>';
+    return;
+  }
+  rowsEl.innerHTML = `<div class="series-wrap">${seriesGridHtml('시리즈', pItems)}</div>`;
 }
 
 function renderHero(){
@@ -650,16 +651,7 @@ function seriesGridHtml(title, items){
       <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${(it.type==='series'||it.type==='popular')?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" ${imgAttrs(it.thumbnailUrl)} alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
     </div>`;
 }
-function renderSeriesPage(){
-  const rowsEl = document.getElementById('rows');
-  const pItems = profileItems().filter(i=>!i.seriesId);
-  if(pItems.length === 0){
-    rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 콘텐츠가 없습니다.</p>';
-    return;
-  }
-  const grouped = groupByCategory(pItems);
-  rowsEl.innerHTML = `<div class="series-wrap">${Object.entries(grouped).map(([cat, items])=>seriesGridHtml(cat, items)).join('')}</div>`;
-}
+
 function seasonRowHtml(label, items){
   if(!items.length) return '';
   return `<div class="row season-block">
@@ -812,7 +804,6 @@ function doSearch(q){
   const isChosungQuery = [...q].every(c => CHOSUNG.includes(c));
   const results = profileItems().filter(i => i.type!=='series' && (
     matchesQuery(i.title, q, q, isChosungQuery) ||
-    matchesQuery(i.category, q, q, isChosungQuery) ||
     matchesQuery(i.genre, q, q, isChosungQuery)
   ));
   titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
@@ -854,6 +845,12 @@ document.addEventListener('mouseout', e=>{
 });
 
 /* ===================== DETAIL MODAL ===================== */
+function pickRandomItem(){
+  const pool = profileItems().filter(i=>i.type!=='series' && i.type!=='popular');
+  if(!pool.length){ alert('등록된 콘텐츠가 없습니다.'); return; }
+  const pick = pool[Math.floor(Math.random()*pool.length)];
+  openDetail(pick.id);
+}
 function openDetail(id){
   const it = ITEMS.find(i=>i.id===id);
   if(!it) return;
@@ -877,7 +874,7 @@ function openDetail(id){
   const linkHtml = it.link ? `<a class="modal-link" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.link)}</a>` : '';
   const bodyHtml = `<div class="modal-body">
       ${it.title ? `<h2>${esc(it.title)}</h2>` : ''}
-      <div class="modal-cat">${esc(it.category||'기타')}</div>
+      <div class="modal-cat">${esc(it.genre||'')}</div>
       <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
       ${linkHtml}
     </div>`;
@@ -976,7 +973,6 @@ function openAdminPanel(){
     <div class="admin-tabs">
       <button class="admin-tab active" id="tabAdd" onclick="switchAdminTab('add')">항목 추가/수정</button>
       <button class="admin-tab" id="tabList" onclick="switchAdminTab('list')">전체 목록 (${ITEMS.length})</button>
-      <button class="admin-tab" id="tabOrder" onclick="switchAdminTab('order')">순서 변경</button>
       <button class="admin-tab" id="tabProfiles" onclick="switchAdminTab('profiles')">프로필 이미지</button>
     </div>
     <div id="adminTabContent"></div>
@@ -987,11 +983,9 @@ function openAdminPanel(){
 function switchAdminTab(tab){
   document.getElementById('tabAdd').classList.toggle('active', tab==='add');
   document.getElementById('tabList').classList.toggle('active', tab==='list');
-  document.getElementById('tabOrder').classList.toggle('active', tab==='order');
   document.getElementById('tabProfiles').classList.toggle('active', tab==='profiles');
   if(tab==='add') renderAddForm();
   else if(tab==='list') renderAdminList();
-  else if(tab==='order') renderOrderTab();
   else renderProfileForm();
 }
 function renderProfileForm(){
@@ -1024,7 +1018,6 @@ function renderProfileForm(){
   };
 }
 let adminListFilter = '전체';
-let orderSeriesId = null, orderSeason = '1';
 function renderAdminList(){
   const content = document.getElementById('adminTabContent');
   const list = adminListFilter==='전체' ? ITEMS : ITEMS.filter(it=>it.profiles && it.profiles.includes(adminListFilter));
@@ -1033,17 +1026,23 @@ function renderAdminList(){
     ${PROFILES.map(p=>`<button class="admin-tab ${adminListFilter===p?'active':''}" onclick="adminListFilter='${p}';renderAdminList();">${PROFILE_EMOJI[p]} ${p}</button>`).join('')}
   </div>`;
   if(list.length===0){ content.innerHTML = filterBtns + '<p style="color:#888;">등록된 항목이 없습니다.</p>'; return; }
-  content.innerHTML = filterBtns + list.map(it=>`
+  const itemRowHtml = it=>`
     <div class="admin-list-item">
       <img src="${it.thumbnailUrl}">
       <div style="flex:1;">
         <div class="ali-title">${esc(it.title)}</div>
-        <div class="ali-cat">${esc(it.category||'기타')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
+        <div class="ali-cat">${esc(it.genre||'')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
       </div>
       <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
       <button class="ali-btn" onclick="duplicateItem('${it.id}')">복제</button>
       <button class="ali-btn danger" onclick="deleteItem('${it.id}')">삭제</button>
-    </div>`).join('');
+    </div>`;
+  const parents = list.filter(it=>!it.seriesId);
+  const parentIds = new Set(parents.map(p=>p.id));
+  content.innerHTML = filterBtns + parents.map(p=>{
+    const episodes = list.filter(it=>it.seriesId===p.id);
+    return itemRowHtml(p) + (episodes.length ? `<div style="margin:0 0 14px 32px;border-left:2px solid #333;padding-left:12px;">${episodes.map(itemRowHtml).join('')}</div>` : '');
+  }).join('') + list.filter(it=>it.seriesId && !parentIds.has(it.seriesId)).map(itemRowHtml).join('');
 }
 function openAdminForm(id){
   editingId = id;
@@ -1052,75 +1051,9 @@ function openAdminForm(id){
   renderAddForm();
 }
 
-function renderOrderTab(){
-  const content = document.getElementById('adminTabContent');
-  const seriesList = ITEMS.filter(i=>i.type==='series'||i.type==='popular');
-  if(!seriesList.length){ content.innerHTML = '<p style="color:#888;">등록된 시리즈가 없습니다.</p>'; return; }
-  if(!orderSeriesId || !seriesList.some(s=>s.id===orderSeriesId)) orderSeriesId = seriesList[0].id;
-  const episodes = sortByOrder(ITEMS.filter(i=>i.seriesId===orderSeriesId && (i.season||'1')===orderSeason));
-  content.innerHTML = `
-    <div class="field">
-      <label>시리즈 선택</label>
-      <select id="orderSeriesSel">${seriesList.map(s=>`<option value="${s.id}" ${s.id===orderSeriesId?'selected':''}>${esc(s.title)}</option>`).join('')}</select>
-    </div>
-    <div class="admin-tabs" style="margin-bottom:14px;border-bottom:none;">
-      ${['1','2','3'].map(s=>`<button type="button" class="admin-tab ${orderSeason===s?'active':''}" onclick="orderSeason='${s}'; renderOrderTab();">그룹 ${s}</button>`).join('')}
-    </div>
-    <p style="color:#888;font-size:13px;margin-bottom:10px;">항목을 드래그해서 순서를 바꾸세요. 놓으면 바로 저장됩니다.</p>
-    <div id="orderList">${episodes.length ? episodes.map((it,idx)=>`
-      <div class="order-item" draggable="true" data-id="${it.id}">
-        <span class="order-handle">⠿</span>
-        <img src="${it.thumbnailUrl}">
-        <span class="order-item-title">${esc(it.title)}</span>
-        <span class="order-num">${idx+1}</span>
-      </div>`).join('') : '<p style="color:#888;">해당 그룹에 에피소드가 없습니다.</p>'}</div>
-    <div id="orderStatus"></div>`;
-  document.getElementById('orderSeriesSel').onchange = e=>{ orderSeriesId = e.target.value; orderSeason = '1'; renderOrderTab(); };
-  initOrderDrag();
-}
-function getDragAfterElement(container, y){
-  const els = [...container.querySelectorAll('.order-item:not(.dragging)')];
-  return els.reduce((closest, child)=>{
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height/2;
-    if(offset<0 && offset>closest.offset) return {offset, element:child};
-    return closest;
-  }, {offset:-Infinity}).element;
-}
-function initOrderDrag(){
-  const list = document.getElementById('orderList');
-  if(!list) return;
-  let dragEl = null;
-  list.querySelectorAll('.order-item').forEach(item=>{
-    item.addEventListener('dragstart', ()=>{ dragEl = item; setTimeout(()=>item.classList.add('dragging'),0); });
-    item.addEventListener('dragend', ()=>{ item.classList.remove('dragging'); saveOrder(); });
-  });
-  list.addEventListener('dragover', e=>{
-    e.preventDefault();
-    if(!dragEl) return;
-    const after = getDragAfterElement(list, e.clientY);
-    if(after==null) list.appendChild(dragEl);
-    else list.insertBefore(dragEl, after);
-  });
-}
-async function saveOrder(){
-  const ids = [...document.querySelectorAll('#orderList .order-item')].map(el=>el.dataset.id);
-  const statusEl = document.getElementById('orderStatus');
-  if(!ids.length || !statusEl) return;
-  statusEl.innerHTML = `<div class="status-msg ok">저장 중...</div>`;
-  try{
-    await Promise.all(ids.map((id,idx)=> db.collection('items').doc(id).update({order:idx+1})));
-    ids.forEach((id,idx)=>{ const it = ITEMS.find(i=>i.id===id); if(it) it.order = idx+1; });
-    document.querySelectorAll('#orderList .order-num').forEach((el,idx)=> el.textContent = idx+1);
-    statusEl.innerHTML = `<div class="status-msg ok">순서가 저장되었습니다.</div>`;
-  }catch(err){
-    statusEl.innerHTML = `<div class="status-msg err">오류: ${esc(err.message)}</div>`;
-  }
-}
 
 function renderAddForm(){
   const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
-  const cats = [...new Set(ITEMS.map(i=>i.category||'기타'))];
   const GENRE_DEFAULT = ['로맨스','액션','코미디','드라마','다큐멘터리','SF','판타지','스릴러','예능','키즈','여행','브이로그','음악'];
   const genreOptions = [...new Set([...GENRE_DEFAULT, ...ITEMS.flatMap(i=>(i.genre||'').split(',').map(s=>s.trim()).filter(Boolean))])];
   const selectedGenres = it && it.genre ? it.genre.split(',').map(s=>s.trim()).filter(Boolean) : [];
@@ -1189,14 +1122,6 @@ function renderAddForm(){
           ${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${it&&String(it.rank)===String(n)?'selected':''}>${n}위</option>`).join('')}
         </select>
       </div>
-      <div class="field" id="categoryField">
-        <label>카테고리 (선택 또는 새로 추가)</label>
-        <select id="fCategory">
-          ${cats.map(c=>`<option value="${esc(c)}" ${it&&(it.category||'기타')===c?'selected':''}>${esc(c)}</option>`).join('')}
-          <option value="__add_new__">+ 새 카테고리 추가</option>
-        </select>
-        <input type="text" id="fCategoryNew" class="hidden" placeholder="새 카테고리 이름 입력" style="margin-top:6px;">
-      </div>
       <div class="field" id="homeCatField">
         <label>홈 화면(블루베리) 노출 줄 (비워두면 홈에 노출 안 됨)</label>
         <div style="display:flex;gap:6px;">
@@ -1250,7 +1175,6 @@ function renderAddForm(){
     document.getElementById('castGenreField').classList.toggle('hidden', !(isPopularEp || t==='youtube'));
     document.getElementById('castGenreField2').classList.toggle('hidden', !(isPopularEp || t==='youtube'));
     document.getElementById('yearRuntimeField').classList.toggle('hidden', !isPopularEp);
-    document.getElementById('categoryField').classList.toggle('hidden', isPopularEp);
     document.getElementById('homeCatField').classList.toggle('hidden', isPopularEp);
     document.getElementById('linkField').classList.toggle('hidden', isPopularEp || t==='series' || t==='popular');
     document.getElementById('fDescLabel').textContent = isPopularEp ? '설명 (목록 카드에 표시, 보통 날짜)' : '설명';
@@ -1311,9 +1235,6 @@ function renderAddForm(){
     renderAddForm();
   };
   document.getElementById('fSeriesId').onchange = toggleSeasonField;
-  document.getElementById('fCategory').onchange = ()=>{
-    document.getElementById('fCategoryNew').classList.toggle('hidden', document.getElementById('fCategory').value !== '__add_new__');
-  };
   window.addGenreOption = ()=>{
     const input = document.getElementById('fGenreNew');
     const name = input.value.trim();
@@ -1336,8 +1257,6 @@ function renderAddForm(){
     try{
       const type = document.getElementById('fType').value;
       const title = document.getElementById('fTitle').value.trim();
-      const fCatSel = document.getElementById('fCategory').value;
-      const category = (fCatSel === '__add_new__' ? document.getElementById('fCategoryNew').value.trim() : fCatSel) || '기타';
       const homeCategory = document.getElementById('fHomeCat').value.trim() || null;
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
@@ -1361,7 +1280,7 @@ function renderAddForm(){
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
       const profiles = [...document.querySelectorAll('.fProfile:checked')].map(el=>el.value);
-      const payload = { title, category, homeCategory, description, type, featured, thumbnailUrl, profiles, images: [] };
+      const payload = { title, homeCategory, description, type, featured, thumbnailUrl, profiles, images: [] };
       if(type === 'youtube'){ payload.youtubeId = youtubeId; }
       else { payload.youtubeId = null; }
       if(type === 'series'){
