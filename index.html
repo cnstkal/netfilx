@@ -226,6 +226,7 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
 .modal-body{padding:24px 32px 32px;}
 .modal-body h2{font-family:'Pretendard',sans-serif; font-size:32px; letter-spacing:1px; margin-bottom:6px;}
 .modal-cat{color:var(--red); font-size:13px; font-weight:700; margin-bottom:12px;}
+.modal-cast{color:#ccc; font-size:14px; margin-bottom:10px;}
 .modal-desc{color:#d2d2d2; line-height:1.6; font-size:15px; white-space:pre-wrap;}
 .gallery-strip{display:flex; gap:8px; padding:14px 32px 0; overflow-x:auto;}
 .gallery-strip img{width:90px; height:60px; object-fit:cover; border-radius:3px; cursor:pointer; opacity:.6; border:2px solid transparent;}
@@ -893,6 +894,7 @@ function openDetail(id){
   const bodyHtml = `<div class="modal-body">
       ${it.title ? `<h2>${esc(it.title)}</h2>` : ''}
       <div class="modal-cat">${esc(it.category||it.genre||'')}</div>
+      ${it.type==='youtube' && it.cast ? `<div class="modal-cast">출연: ${esc(it.cast)}</div>` : ''}
       <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
       ${linkHtml}
     </div>`;
@@ -1073,8 +1075,8 @@ function openAdminForm(id){
 function renderAddForm(){
   const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
   const GENRE_DEFAULT = ['로맨스','액션','코미디','드라마','다큐멘터리','SF','판타지','스릴러','예능','키즈','여행','브이로그','음악'];
-  const genreOptions = [...new Set([...GENRE_DEFAULT, ...ITEMS.flatMap(i=>(i.genre||'').split(',').map(s=>s.trim()).filter(Boolean))])];
-  const selectedGenres = it && it.genre ? it.genre.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const genreOptions = [...new Set([...GENRE_DEFAULT, ...ITEMS.flatMap(i=>(i.genre||'').split(/[,·]/).map(s=>s.trim()).filter(Boolean))])];
+  const selectedGenres = it && it.genre ? it.genre.split(/[,·]/).map(s=>s.trim()).filter(Boolean) : [];
   const cats = [...new Set(ITEMS.filter(i=>i.category).map(i=>i.category))];
   const content = document.getElementById('adminTabContent');
   content.innerHTML = `
@@ -1331,7 +1333,7 @@ function renderAddForm(){
         payload.rank = null;
         payload.cast = document.getElementById('fCast').value.trim() || null;
         const genresChecked = [...document.querySelectorAll('.fGenreChk:checked')].map(el=>el.value);
-        payload.genre = genresChecked.length ? genresChecked.join(', ') : null;
+        payload.genre = genresChecked.length ? genresChecked.join(' · ') : null;
         payload.year = document.getElementById('fYear').value.trim() || null;
         payload.runtime = document.getElementById('fRuntime').value.trim() || null;
         if(sId){
