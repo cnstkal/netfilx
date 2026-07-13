@@ -241,6 +241,14 @@ img{display:block;}
 .admin-list-item img{width:56px; height:32px; object-fit:cover; border-radius:2px; flex-shrink:0;}
 .admin-list-item .ali-title{flex:1; font-size:13px;}
 .admin-list-item .ali-cat{font-size:11px; color:var(--gray);}
+.order-item{display:flex; align-items:center; gap:10px; padding:8px; background:#232323; border-radius:6px; margin-bottom:6px; cursor:grab;}
+.order-item.dragging{opacity:.35;}
+.order-handle{color:#777; font-size:16px; line-height:1;}
+.order-item img{width:52px; height:34px; object-fit:cover; border-radius:3px; flex-shrink:0;}
+.order-item-title{flex:1; font-size:13px; color:#ddd;}
+.order-num{color:#666; font-size:12px; min-width:18px; text-align:right;}
+.card-preview{position:absolute; inset:0; width:100%; height:100%; border:none; z-index:1; opacity:0; transition:opacity .3s ease; pointer-events:none;}
+.card-preview.show{opacity:1;}
 .ali-btn{background:#333; border:1px solid #555; color:#fff; font-size:11px; padding:5px 9px; border-radius:3px;}
 .ali-btn.danger:hover{background:var(--red); border-color:var(--red);}
 .status-msg{font-size:13px; padding:8px; border-radius:4px; margin-bottom:14px;}
@@ -438,6 +446,19 @@ async function uploadToCloudinary(file){
   return data.secure_url;
 }
 function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function imgAttrs(url, widths=[300,500,800]){
+  if(!url) return '';
+  if(url.includes('res.cloudinary.com') && url.includes('/upload/')){
+    const srcset = widths.map(w=> `${url.replace('/upload/', `/upload/w_${w},q_auto,f_auto,c_limit/`)} ${w}w`).join(', ');
+    return `srcset="${srcset}" sizes="(max-width:600px) 45vw, 300px"`;
+  }
+  if(url.includes('img.youtube.com/vi/')){
+    const base = url.replace(/\/[a-z0-9]+\.jpg(\?.*)?$/,'');
+    const srcset = [`${base}/mqdefault.jpg 320w`, `${base}/hqdefault.jpg 480w`, `${base}/sddefault.jpg 640w`].join(', ');
+    return `srcset="${srcset}" sizes="(max-width:600px) 45vw, 300px"`;
+  }
+  return '';
+}
 function fmtDate(ts){
   if(!ts || !ts.toDate) return '';
   const d = ts.toDate();
@@ -531,9 +552,10 @@ function cardHtml(it){
       <button class="admin-mini" onclick="event.stopPropagation(); deleteItem('${it.id}')">삭제</button>
     </div>` : '';
   const wished = wishlist.has(it.id);
-  return `<div class="card" onclick="openDetail('${it.id}')">
+  const yt = it.type==='youtube' && it.youtubeId ? ` data-yt="${it.youtubeId}"` : '';
+  return `<div class="card"${yt} onclick="openDetail('${it.id}')">
       ${adminBtns}
-      <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+      <img src="${it.thumbnailUrl}" ${imgAttrs(it.thumbnailUrl)} alt="${esc(it.title)}" loading="lazy">
       <button class="wish-btn ${wished?'active':''}" onclick="event.stopPropagation(); toggleWishlist('${it.id}')">${wished?'✓':'+'}</button>
       <div class="cinfo">${esc(it.title)}</div>
     </div>`;
@@ -579,7 +601,7 @@ function seriesGridHtml(title, items){
   if(!items.length) return '';
   return `<div class="row">
       <div class="row-title">${esc(title)}</div>
-      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${(it.type==='series'||it.type==='popular')?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
+      <div class="series-grid">${items.map(it=>`<div class="series-card" onclick="${(it.type==='series'||it.type==='popular')?`openSeriesPage('${it.id}')`:`openDetail('${it.id}')`}"><img src="${it.thumbnailUrl}" ${imgAttrs(it.thumbnailUrl)} alt="${esc(it.title)}" loading="lazy"></div>`).join('')}</div>
     </div>`;
 }
 function renderSeriesPage(){
@@ -598,7 +620,7 @@ function seasonRowHtml(label, items){
       <div class="row-title">${label}</div>
       <div class="season-track">${items.map(it=>`
         <div class="season-card" onclick="openDetail('${it.id}')">
-          <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+          <img src="${it.thumbnailUrl}" ${imgAttrs(it.thumbnailUrl)} alt="${esc(it.title)}" loading="lazy">
           <div class="season-card-title">${esc(it.title)}</div>
         </div>`).join('')}</div>
     </div>`;
@@ -636,7 +658,7 @@ function renderPopularPage(){
       <div class="top7-grid">${items.map(it=>`
         <div class="top7-card" onclick="openSeriesPage('${it.id}')">
           <span class="top7-rank">${it.rank}</span>
-          <img src="${it.thumbnailUrl}" alt="${esc(it.title)}" loading="lazy">
+          <img src="${it.thumbnailUrl}" ${imgAttrs(it.thumbnailUrl)} alt="${esc(it.title)}" loading="lazy">
         </div>`).join('')}</div>
     </div>`;
 }
@@ -734,6 +756,33 @@ document.getElementById('logoBtn').onclick = ()=>{
   doSearch('');
   window.scrollTo({top:0, behavior:'smooth'});
 };
+
+/* ===================== CARD HOVER PREVIEW ===================== */
+let previewTimer = null, previewCard = null;
+document.addEventListener('mouseover', e=>{
+  const card = e.target.closest('.card[data-yt]');
+  if(!card || card===previewCard) return;
+  previewCard = card;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(()=>{
+    if(previewCard !== card || card.querySelector('.card-preview')) return;
+    const yt = card.dataset.yt;
+    const f = document.createElement('iframe');
+    f.className = 'card-preview';
+    f.src = `https://www.youtube.com/embed/${yt}?autoplay=1&mute=1&controls=0&loop=1&playlist=${yt}&modestbranding=1&rel=0&playsinline=1`;
+    f.allow = 'autoplay; encrypted-media';
+    card.appendChild(f);
+    requestAnimationFrame(()=> f.classList.add('show'));
+  }, 600);
+});
+document.addEventListener('mouseout', e=>{
+  const card = e.target.closest('.card[data-yt]');
+  if(!card || card.contains(e.relatedTarget)) return;
+  clearTimeout(previewTimer);
+  if(previewCard===card) previewCard = null;
+  const f = card.querySelector('.card-preview');
+  if(f) f.remove();
+});
 
 /* ===================== DETAIL MODAL ===================== */
 function openDetail(id){
@@ -858,6 +907,7 @@ function openAdminPanel(){
     <div class="admin-tabs">
       <button class="admin-tab active" id="tabAdd" onclick="switchAdminTab('add')">항목 추가/수정</button>
       <button class="admin-tab" id="tabList" onclick="switchAdminTab('list')">전체 목록 (${ITEMS.length})</button>
+      <button class="admin-tab" id="tabOrder" onclick="switchAdminTab('order')">순서 변경</button>
       <button class="admin-tab" id="tabProfiles" onclick="switchAdminTab('profiles')">프로필 이미지</button>
     </div>
     <div id="adminTabContent"></div>
@@ -868,9 +918,11 @@ function openAdminPanel(){
 function switchAdminTab(tab){
   document.getElementById('tabAdd').classList.toggle('active', tab==='add');
   document.getElementById('tabList').classList.toggle('active', tab==='list');
+  document.getElementById('tabOrder').classList.toggle('active', tab==='order');
   document.getElementById('tabProfiles').classList.toggle('active', tab==='profiles');
   if(tab==='add') renderAddForm();
   else if(tab==='list') renderAdminList();
+  else if(tab==='order') renderOrderTab();
   else renderProfileForm();
 }
 function renderProfileForm(){
@@ -903,6 +955,7 @@ function renderProfileForm(){
   };
 }
 let adminListFilter = '전체';
+let orderSeriesId = null, orderSeason = '1';
 function renderAdminList(){
   const content = document.getElementById('adminTabContent');
   const list = adminListFilter==='전체' ? ITEMS : ITEMS.filter(it=>it.profiles && it.profiles.includes(adminListFilter));
@@ -928,6 +981,72 @@ function openAdminForm(id){
   document.getElementById('tabAdd').classList.add('active');
   document.getElementById('tabList').classList.remove('active');
   renderAddForm();
+}
+
+function renderOrderTab(){
+  const content = document.getElementById('adminTabContent');
+  const seriesList = ITEMS.filter(i=>i.type==='series'||i.type==='popular');
+  if(!seriesList.length){ content.innerHTML = '<p style="color:#888;">등록된 시리즈가 없습니다.</p>'; return; }
+  if(!orderSeriesId || !seriesList.some(s=>s.id===orderSeriesId)) orderSeriesId = seriesList[0].id;
+  const episodes = sortByOrder(ITEMS.filter(i=>i.seriesId===orderSeriesId && (i.season||'1')===orderSeason));
+  content.innerHTML = `
+    <div class="field">
+      <label>시리즈 선택</label>
+      <select id="orderSeriesSel">${seriesList.map(s=>`<option value="${s.id}" ${s.id===orderSeriesId?'selected':''}>${esc(s.title)}</option>`).join('')}</select>
+    </div>
+    <div class="admin-tabs" style="margin-bottom:14px;border-bottom:none;">
+      ${['1','2','3'].map(s=>`<button type="button" class="admin-tab ${orderSeason===s?'active':''}" onclick="orderSeason='${s}'; renderOrderTab();">그룹 ${s}</button>`).join('')}
+    </div>
+    <p style="color:#888;font-size:13px;margin-bottom:10px;">항목을 드래그해서 순서를 바꾸세요. 놓으면 바로 저장됩니다.</p>
+    <div id="orderList">${episodes.length ? episodes.map((it,idx)=>`
+      <div class="order-item" draggable="true" data-id="${it.id}">
+        <span class="order-handle">⠿</span>
+        <img src="${it.thumbnailUrl}">
+        <span class="order-item-title">${esc(it.title)}</span>
+        <span class="order-num">${idx+1}</span>
+      </div>`).join('') : '<p style="color:#888;">해당 그룹에 에피소드가 없습니다.</p>'}</div>
+    <div id="orderStatus"></div>`;
+  document.getElementById('orderSeriesSel').onchange = e=>{ orderSeriesId = e.target.value; orderSeason = '1'; renderOrderTab(); };
+  initOrderDrag();
+}
+function getDragAfterElement(container, y){
+  const els = [...container.querySelectorAll('.order-item:not(.dragging)')];
+  return els.reduce((closest, child)=>{
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height/2;
+    if(offset<0 && offset>closest.offset) return {offset, element:child};
+    return closest;
+  }, {offset:-Infinity}).element;
+}
+function initOrderDrag(){
+  const list = document.getElementById('orderList');
+  if(!list) return;
+  let dragEl = null;
+  list.querySelectorAll('.order-item').forEach(item=>{
+    item.addEventListener('dragstart', ()=>{ dragEl = item; setTimeout(()=>item.classList.add('dragging'),0); });
+    item.addEventListener('dragend', ()=>{ item.classList.remove('dragging'); saveOrder(); });
+  });
+  list.addEventListener('dragover', e=>{
+    e.preventDefault();
+    if(!dragEl) return;
+    const after = getDragAfterElement(list, e.clientY);
+    if(after==null) list.appendChild(dragEl);
+    else list.insertBefore(dragEl, after);
+  });
+}
+async function saveOrder(){
+  const ids = [...document.querySelectorAll('#orderList .order-item')].map(el=>el.dataset.id);
+  const statusEl = document.getElementById('orderStatus');
+  if(!ids.length || !statusEl) return;
+  statusEl.innerHTML = `<div class="status-msg ok">저장 중...</div>`;
+  try{
+    await Promise.all(ids.map((id,idx)=> db.collection('items').doc(id).update({order:idx+1})));
+    ids.forEach((id,idx)=>{ const it = ITEMS.find(i=>i.id===id); if(it) it.order = idx+1; });
+    document.querySelectorAll('#orderList .order-num').forEach((el,idx)=> el.textContent = idx+1);
+    statusEl.innerHTML = `<div class="status-msg ok">순서가 저장되었습니다.</div>`;
+  }catch(err){
+    statusEl.innerHTML = `<div class="status-msg err">오류: ${esc(err.message)}</div>`;
+  }
 }
 
 function renderAddForm(){
