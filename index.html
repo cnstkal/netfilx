@@ -150,10 +150,6 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
 .season-card:hover img{transform:scale(1.03);}
 .season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
 .modal-link{display:inline-block; margin-top:14px; color:#4ea6ff; font-size:14px; text-decoration:underline; word-break:break-all;}
-.rank-item{position:relative; display:flex; align-items:flex-end; flex:0 0 auto;}
-.rank-num{font-family:'Pretendard',sans-serif; font-weight:900; font-size:80px; line-height:1; color:transparent; -webkit-text-stroke:2px #565656; margin-right:-20px; position:relative; z-index:1; user-select:none; align-self:flex-end;}
-.rank-item .card{flex:0 0 200px; width:200px;}
-@media(max-width:768px){.rank-num{font-size:44px; -webkit-text-stroke:1.5px #565656; margin-right:-10px;} .rank-item .card{flex:0 0 130px; width:130px;}}
 .top7-grid{display:grid; grid-template-columns:repeat(3,minmax(0,max-content)); justify-content:center; gap:40px 90px; padding-top:40px; max-width:100%; overflow:hidden;}
 .top7-grid .top7-card:nth-child(7){grid-column:2;}
 .top7-card{position:relative; display:flex; align-items:flex-end; cursor:pointer; --imgw:clamp(85px,9.5vw,130px); --rankscale:1.95; max-width:100%;}
@@ -416,17 +412,6 @@ try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
 
 /* ===================== STATE ===================== */
 let ITEMS = [];
-let TOP5_IDS = [];
-let TOP5_UPDATED_AT = 0;
-const TOP5_REFRESH_MS = 24*3600*1000;
-function maybeRefreshTop5(){
-  if(TOP5_UPDATED_AT && (Date.now()-TOP5_UPDATED_AT) < TOP5_REFRESH_MS) return;
-  const ranked = [...ITEMS].filter(i=>i.type!=='series'&&i.type!=='popular').sort((a,b)=>(b.clickCount||0)-(a.clickCount||0)).slice(0,5);
-  if(!ranked.length) return;
-  TOP5_IDS = ranked.map(i=>i.id);
-  TOP5_UPDATED_AT = Date.now();
-  db.collection('items').doc('_top5Cache').set({ids:TOP5_IDS, updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
-}
 let isAdmin = false;
 let editingId = null;
 let currentGalleryImages = [];
@@ -533,6 +518,15 @@ function profileItems(){
   if(!currentProfile) return ITEMS;
   return ITEMS.filter(it => !it.profiles || it.profiles.length===0 || it.profiles.includes(currentProfile));
 }
+function groupByCategory(items){
+  const map = {};
+  items.forEach(it=>{
+    const cat = it.category || '기타';
+    if(!map[cat]) map[cat] = [];
+    map[cat].push(it);
+  });
+  return map;
+}
 function renderSeriesPage(){
   const rowsEl = document.getElementById('rows');
   const pItems = profileItems().filter(i=>!i.seriesId);
@@ -540,7 +534,8 @@ function renderSeriesPage(){
     rowsEl.innerHTML = ITEMS.length===0 ? '' : '<p style="color:#999;padding:100px 40px;text-align:center;">등록된 콘텐츠가 없습니다.</p>';
     return;
   }
-  rowsEl.innerHTML = `<div class="series-wrap">${seriesGridHtml('시리즈', pItems)}</div>`;
+  const grouped = groupByCategory(pItems);
+  rowsEl.innerHTML = `<div class="series-wrap">${Object.entries(grouped).map(([cat,items])=>seriesGridHtml(cat, items)).join('')}</div>`;
 }
 
 function renderHero(){
@@ -574,7 +569,7 @@ function renderHero(){
       <h1>${esc(featured.title)}</h1>
       <p>${esc(featured.description||'')}</p>
       <div class="hero-btns">
-        <button class="btn btn-play" onclick="openDetail('${featured.id}')">▶ 재생</button>
+        <button class="btn btn-play" onclick="pauseHeroVideo(); openDetail('${featured.id}')">▶ 재생</button>
         <button class="btn btn-info" onclick="event.stopPropagation(); toggleWishlist('${featured.id}')">${wished?'✓ 찜한 콘텐츠':'+ 찜하기'}</button>
       </div>
     </div>
@@ -639,17 +634,6 @@ function posterRowHtml(title, items, rowId){
       </div>
     </div>`;
 }
-function rankRowHtml(items){
-  if(!items.length) return '';
-  return `<div class="row">
-      <div class="row-title">실시간 인기 TOP 5</div>
-      <div class="row-track-wrap">
-        <button class="row-arrow left" onclick="scrollRow(this,-1)">&#10094;</button>
-        <div class="row-track">${items.map((it,idx)=>`<div class="rank-item"><span class="rank-num">${idx+1}</span>${cardHtml(it)}</div>`).join('')}</div>
-        <button class="row-arrow right" onclick="scrollRow(this,1)">&#10095;</button>
-      </div>
-    </div>`;
-}
 function renderRows(){
   const rowsEl = document.getElementById('rows');
   const pItems = profileItems();
@@ -666,8 +650,6 @@ function renderRows(){
 
   let html = '';
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
-  const top5Items = TOP5_IDS.map(id=>pItems.find(i=>i.id===id)).filter(Boolean);
-  html += rankRowHtml(top5Items);
   cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>(i.homeCategory||HOME_CATEGORIES[0])===cat)));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   rowsEl.innerHTML = html;
@@ -832,7 +814,8 @@ function doSearch(q){
   const isChosungQuery = [...q].every(c => CHOSUNG.includes(c));
   const results = profileItems().filter(i => i.type!=='series' && (
     matchesQuery(i.title, q, q, isChosungQuery) ||
-    matchesQuery(i.genre, q, q, isChosungQuery)
+    matchesQuery(i.genre, q, q, isChosungQuery) ||
+    matchesQuery(i.category, q, q, isChosungQuery)
   ));
   titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
   rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
@@ -873,7 +856,14 @@ document.addEventListener('mouseout', e=>{
 });
 
 /* ===================== DETAIL MODAL ===================== */
+function pauseHeroVideo(){
+  const frame = document.getElementById('heroVideoFrame');
+  if(frame && frame.contentWindow){
+    frame.contentWindow.postMessage(JSON.stringify({event:'command', func:'pauseVideo', args:[]}), '*');
+  }
+}
 function pickRandomItem(){
+  pauseHeroVideo();
   const pool = profileItems().filter(i=>i.type!=='series' && i.type!=='popular');
   if(!pool.length){ alert('등록된 콘텐츠가 없습니다.'); return; }
   const pick = pool[Math.floor(Math.random()*pool.length)];
@@ -882,7 +872,6 @@ function pickRandomItem(){
 function openDetail(id){
   const it = ITEMS.find(i=>i.id===id);
   if(!it) return;
-  db.collection('items').doc(id).update({clickCount:firebase.firestore.FieldValue.increment(1)}).catch(()=>{});
   recentlyViewed = [id, ...recentlyViewed.filter(x=>x!==id)].slice(0,10);
   saveProfileState();
   if(currentProfile === '블루베리') renderRows();
@@ -903,7 +892,7 @@ function openDetail(id){
   const linkHtml = it.link ? `<a class="modal-link" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.link)}</a>` : '';
   const bodyHtml = `<div class="modal-body">
       ${it.title ? `<h2>${esc(it.title)}</h2>` : ''}
-      <div class="modal-cat">${esc(it.genre||'')}</div>
+      <div class="modal-cat">${esc(it.category||it.genre||'')}</div>
       <div class="modal-desc">${esc(it.description||'설명이 없습니다.')}</div>
       ${linkHtml}
     </div>`;
@@ -939,10 +928,6 @@ db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
   PROFILE_IMAGES = settingsDoc ? (settingsDoc.data().images||{}) : PROFILE_IMAGES;
   const homeCatDoc = snap.docs.find(d=>d.id==='_homeCatSettings');
   HOME_CATEGORIES = homeCatDoc && homeCatDoc.data().list ? homeCatDoc.data().list : HOME_CATEGORIES;
-  const top5Doc = snap.docs.find(d=>d.id==='_top5Cache');
-  TOP5_IDS = top5Doc && top5Doc.data().ids ? top5Doc.data().ids : TOP5_IDS;
-  TOP5_UPDATED_AT = top5Doc && top5Doc.data().updatedAt ? top5Doc.data().updatedAt.toDate().getTime() : TOP5_UPDATED_AT;
-  maybeRefreshTop5();
   applyProfileImages();
   renderAll();
 }, err=>{
@@ -1064,7 +1049,7 @@ function renderAdminList(){
       <img src="${it.thumbnailUrl}">
       <div style="flex:1;">
         <div class="ali-title">${esc(it.title)}</div>
-        <div class="ali-cat">${esc(it.genre||'')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
+        <div class="ali-cat">${esc(it.category||it.genre||'')} · ${it.type==='youtube'?'영상':it.type==='popular'?`인기시리즈 ${it.rank||''}위`:it.type==='series'?'시리즈':'사진'} · ${(it.profiles&&it.profiles.length)?it.profiles.map(p=>PROFILE_EMOJI[p]||p).join(' '):'전체 프로필'}</div>
       </div>
       <button class="ali-btn" onclick="openAdminForm('${it.id}')">수정</button>
       <button class="ali-btn" onclick="duplicateItem('${it.id}')">복제</button>
@@ -1090,6 +1075,7 @@ function renderAddForm(){
   const GENRE_DEFAULT = ['로맨스','액션','코미디','드라마','다큐멘터리','SF','판타지','스릴러','예능','키즈','여행','브이로그','음악'];
   const genreOptions = [...new Set([...GENRE_DEFAULT, ...ITEMS.flatMap(i=>(i.genre||'').split(',').map(s=>s.trim()).filter(Boolean))])];
   const selectedGenres = it && it.genre ? it.genre.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const cats = [...new Set(ITEMS.filter(i=>i.category).map(i=>i.category))];
   const content = document.getElementById('adminTabContent');
   content.innerHTML = `
     <div id="formStatus"></div>
@@ -1155,6 +1141,14 @@ function renderAddForm(){
           ${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${it&&String(it.rank)===String(n)?'selected':''}>${n}위</option>`).join('')}
         </select>
       </div>
+      <div class="field" id="categoryField">
+        <label>카테고리 (선택 또는 새로 추가)</label>
+        <select id="fCategory">
+          ${cats.map(c=>`<option value="${esc(c)}" ${it&&it.category===c?'selected':''}>${esc(c)}</option>`).join('')}
+          <option value="__add_new__">+ 새 카테고리 추가</option>
+        </select>
+        <input type="text" id="fCategoryNew" class="hidden" placeholder="새 카테고리 이름 입력" style="margin-top:6px;">
+      </div>
       <div class="field" id="homeCatField">
         <label>홈 화면(블루베리) 노출 줄 (비워두면 홈에 노출 안 됨)</label>
         <div style="display:flex;gap:6px;">
@@ -1209,6 +1203,7 @@ function renderAddForm(){
     document.getElementById('castGenreField2').classList.toggle('hidden', !(isPopularEp || t==='youtube'));
     document.getElementById('yearRuntimeField').classList.toggle('hidden', !isPopularEp);
     document.getElementById('homeCatField').classList.toggle('hidden', isPopularEp);
+    document.getElementById('categoryField').classList.toggle('hidden', isPopularEp || t==='youtube');
     document.getElementById('linkField').classList.toggle('hidden', isPopularEp || t==='series' || t==='popular');
     document.getElementById('fDescLabel').textContent = isPopularEp ? '설명 (목록 카드에 표시, 보통 날짜)' : '설명';
   }
@@ -1268,6 +1263,9 @@ function renderAddForm(){
     renderAddForm();
   };
   document.getElementById('fSeriesId').onchange = toggleSeasonField;
+  document.getElementById('fCategory').onchange = ()=>{
+    document.getElementById('fCategoryNew').classList.toggle('hidden', document.getElementById('fCategory').value !== '__add_new__');
+  };
   window.addGenreOption = ()=>{
     const input = document.getElementById('fGenreNew');
     const name = input.value.trim();
@@ -1290,6 +1288,8 @@ function renderAddForm(){
     try{
       const type = document.getElementById('fType').value;
       const title = document.getElementById('fTitle').value.trim();
+      const fCatSel = document.getElementById('fCategory').value;
+      const category = type==='youtube' ? null : ((fCatSel === '__add_new__' ? document.getElementById('fCategoryNew').value.trim() : fCatSel) || '기타');
       const homeCategory = document.getElementById('fHomeCat').value.trim() || null;
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
@@ -1313,7 +1313,7 @@ function renderAddForm(){
       if(!thumbnailUrl) throw new Error('썸네일 이미지를 업로드해주세요.');
 
       const profiles = [...document.querySelectorAll('.fProfile:checked')].map(el=>el.value);
-      const payload = { title, homeCategory, description, type, featured, thumbnailUrl, profiles, images: [] };
+      const payload = { title, category, homeCategory, description, type, featured, thumbnailUrl, profiles, images: [] };
       if(type === 'youtube'){ payload.youtubeId = youtubeId; }
       else { payload.youtubeId = null; }
       if(type === 'series'){
