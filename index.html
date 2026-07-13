@@ -94,6 +94,14 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
 .hero-content h1{font-family:'Pretendard', sans-serif; font-size:64px; letter-spacing:1px; line-height:1.05; margin-bottom:16px; text-shadow:2px 2px 8px rgba(0,0,0,.6);}
 .hero-content p{font-size:16px; line-height:1.5; color:#e5e5e5; margin-bottom:20px; max-width:520px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
 .hero-btns{display:flex; gap:12px;}
+.hero-mute-btn{
+  position:absolute; right:40px; bottom:60px; z-index:3;
+  width:42px; height:42px; border-radius:50%; border:1.5px solid rgba(255,255,255,.5);
+  background:rgba(20,20,20,.5); color:#fff; font-size:18px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.hero-mute-btn:hover{border-color:#fff;}
+@media(max-width:768px){.hero-mute-btn{right:16px; bottom:16px; width:34px; height:34px; font-size:14px;}}
 .btn{border:none; border-radius:4px; padding:11px 26px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;}
 .btn-play{background:#fff; color:#000;}
 .btn-play:hover{background:rgba(255,255,255,.75);}
@@ -261,6 +269,19 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
 .status-msg.ok{background:rgba(70,180,90,.15); color:#8be89f; border:1px solid rgba(70,180,90,.4);}
 .spinner-wrap{display:flex; align-items:center; justify-content:center; height:60vh;}
 .spinner{width:44px; height:44px; border:4px solid #333; border-top-color:var(--red); border-radius:50%; animation:spin 1s linear infinite;}
+.skeleton-wrap{padding-top:70px;}
+.skel{background:#2a2a2a; border-radius:4px; position:relative; overflow:hidden;}
+.skel::after{
+  content:''; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+  animation:skel-shimmer 1.4s infinite;
+}
+@keyframes skel-shimmer{100%{transform:translateX(100%);}}
+.skel-hero{width:100%; aspect-ratio:16/9; margin-bottom:24px;}
+.skel-row-title{width:140px; height:20px; margin:0 40px 12px;}
+.skel-row{display:flex; gap:8px; padding:0 40px 28px; overflow:hidden;}
+.skel-card{flex:0 0 220px; aspect-ratio:16/9;}
+@media(max-width:768px){.skel-row-title,.skel-row{margin-left:16px; margin-right:16px; padding-left:0; padding-right:16px;} .skel-card{flex:0 0 140px;}}
 @keyframes spin{to{transform:rotate(360deg);}}
 #searchResultsTitle{padding:100px 40px 10px; font-size:20px; font-weight:700;}
 
@@ -332,7 +353,24 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
   </div>
 </nav>
 
-<div id="loadingWrap" class="spinner-wrap"><div class="spinner"></div></div>
+<div id="loadingWrap" class="skeleton-wrap">
+  <div class="skel skel-hero"></div>
+  <div class="skel skel-row-title"></div>
+  <div class="skel-row">
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+  </div>
+  <div class="skel skel-row-title"></div>
+  <div class="skel-row">
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+  </div>
+  <div class="skel skel-row-title"></div>
+  <div class="skel-row">
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+    <div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>
+  </div>
+</div>
 
 <header id="hero" class="hidden"></header>
 <div id="searchResultsTitle" class="hidden"></div>
@@ -506,10 +544,11 @@ function renderHero(){
   let heroVideo = '';
   if(featured.type === 'youtube' && featured.youtubeId){
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
-    heroVideo = `<iframe id="heroVideoFrame" class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=${heroInteracted?0:1}&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1&enablejsapi=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
+    heroVideo = `<iframe id="heroVideoFrame" class="hero-video" src="https://www.youtube.com/embed/${featured.youtubeId}?autoplay=1&mute=${heroMuted?1:0}&controls=0&loop=1&playlist=${featured.youtubeId}&modestbranding=1&rel=0&playsinline=1&enablejsapi=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
   } else {
     hero.style.backgroundImage = `url('${featured.thumbnailUrl}')`;
   }
+  const isYtHero = featured.type === 'youtube' && featured.youtubeId;
   hero.innerHTML = heroVideo + `
     <div class="hero-content">
       ${featured.homeCategory==='오직 넷플릭스에서' ? `<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:10px;">
@@ -522,20 +561,21 @@ function renderHero(){
         <button class="btn btn-play" onclick="openDetail('${featured.id}')">▶ 재생</button>
         <button class="btn btn-info" onclick="event.stopPropagation(); toggleWishlist('${featured.id}')">${wished?'✓ 찜한 콘텐츠':'+ 찜하기'}</button>
       </div>
-    </div>`;
+    </div>
+    ${isYtHero ? `<button class="hero-mute-btn" onclick="event.stopPropagation(); toggleHeroMute();">${heroMuted?'🔇':'🔊'}</button>` : ''}`;
 }
 let heroObserverInited = false;
-let heroInteracted = false;
-function unmuteHeroOnce(){
-  if(heroInteracted) return;
-  heroInteracted = true;
+let heroMuted = true;
+function toggleHeroMute(){
+  heroMuted = !heroMuted;
   const frame = document.getElementById('heroVideoFrame');
   if(frame && frame.contentWindow){
-    frame.contentWindow.postMessage(JSON.stringify({event:'command', func:'unMute', args:[]}), '*');
+    frame.contentWindow.postMessage(JSON.stringify({event:'command', func: heroMuted?'mute':'unMute', args:[]}), '*');
     frame.contentWindow.postMessage(JSON.stringify({event:'command', func:'playVideo', args:[]}), '*');
   }
+  const btn = document.querySelector('.hero-mute-btn');
+  if(btn) btn.textContent = heroMuted?'🔇':'🔊';
 }
-['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev, unmuteHeroOnce, {capture:true, once:true}));
 function initHeroObserver(){
   if(heroObserverInited) return;
   heroObserverInited = true;
@@ -739,6 +779,22 @@ function renderAll(){
 }
 
 /* ===================== SEARCH ===================== */
+const CHOSUNG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function toChosung(str){
+  let out = '';
+  for(const ch of str){
+    const code = ch.charCodeAt(0) - 0xAC00;
+    out += (code>=0 && code<=11171) ? CHOSUNG[Math.floor(code/588)] : ch;
+  }
+  return out;
+}
+function matchesQuery(text, q, qChosung, isChosungQuery){
+  if(!text) return false;
+  const t = text.toLowerCase();
+  if(t.includes(q)) return true;
+  if(isChosungQuery && toChosung(text).includes(qChosung)) return true;
+  return false;
+}
 function doSearch(q){
   q = q.trim().toLowerCase();
   const hero = document.getElementById('hero');
@@ -753,7 +809,12 @@ function doSearch(q){
   }
   hero.classList.add('hidden');
   titleEl.classList.remove('hidden');
-  const results = profileItems().filter(i => i.type!=='series' && ((i.title||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q)));
+  const isChosungQuery = [...q].every(c => CHOSUNG.includes(c));
+  const results = profileItems().filter(i => i.type!=='series' && (
+    matchesQuery(i.title, q, q, isChosungQuery) ||
+    matchesQuery(i.category, q, q, isChosungQuery) ||
+    matchesQuery(i.genre, q, q, isChosungQuery)
+  ));
   titleEl.textContent = `"${q}" 검색 결과 (${results.length})`;
   rowsEl.innerHTML = `<div class="grid-view">${results.map(cardHtml).join('') || '<p style="color:#999;padding:20px;">검색 결과가 없습니다.</p>'}</div>`;
 }
@@ -1060,6 +1121,9 @@ async function saveOrder(){
 function renderAddForm(){
   const it = editingId ? ITEMS.find(i=>i.id===editingId) : null;
   const cats = [...new Set(ITEMS.map(i=>i.category||'기타'))];
+  const GENRE_DEFAULT = ['로맨스','액션','코미디','드라마','다큐멘터리','SF','판타지','스릴러','예능','키즈','여행','브이로그','음악'];
+  const genreOptions = [...new Set([...GENRE_DEFAULT, ...ITEMS.flatMap(i=>(i.genre||'').split(',').map(s=>s.trim()).filter(Boolean))])];
+  const selectedGenres = it && it.genre ? it.genre.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const content = document.getElementById('adminTabContent');
   content.innerHTML = `
     <div id="formStatus"></div>
@@ -1105,8 +1169,14 @@ function renderAddForm(){
         <input type="text" id="fCast" value="${it?esc(it.cast||''):''}" placeholder="예: 박성화, 정윤호">
       </div>
       <div class="field" id="castGenreField2">
-        <label>장르 (쉼표로 구분)</label>
-        <input type="text" id="fGenre" value="${it?esc(it.genre||''):''}" placeholder="예: 예능, 다큐멘터리">
+        <label>장르 (여러 개 선택 가능)</label>
+        <div class="check-row" id="genreCheckRow" style="flex-wrap:wrap;gap:10px;">
+          ${genreOptions.map(g=>`<label style="display:flex;align-items:center;gap:4px;margin:0;font-size:13px;color:#ccc;"><input type="checkbox" class="fGenreChk" value="${esc(g)}" ${selectedGenres.includes(g)?'checked':''}>${esc(g)}</label>`).join('')}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <input type="text" id="fGenreNew" placeholder="새 장르 이름 입력 후 추가" style="flex:1;">
+          <button type="button" class="ali-btn" onclick="addGenreOption()">추가</button>
+        </div>
       </div>
       <div class="field" id="linkField">
         <label>외부 링크 (선택, 상세페이지에 클릭 가능한 링크로 표시)</label>
@@ -1177,8 +1247,8 @@ function renderAddForm(){
     const isPopularEp = has && parent && parent.type==='popular';
     document.getElementById('seasonField').classList.toggle('hidden', !has);
     document.getElementById('orderField').classList.toggle('hidden', !has);
-    document.getElementById('castGenreField').classList.toggle('hidden', !isPopularEp);
-    document.getElementById('castGenreField2').classList.toggle('hidden', !isPopularEp);
+    document.getElementById('castGenreField').classList.toggle('hidden', !(isPopularEp || t==='youtube'));
+    document.getElementById('castGenreField2').classList.toggle('hidden', !(isPopularEp || t==='youtube'));
     document.getElementById('yearRuntimeField').classList.toggle('hidden', !isPopularEp);
     document.getElementById('categoryField').classList.toggle('hidden', isPopularEp);
     document.getElementById('homeCatField').classList.toggle('hidden', isPopularEp);
@@ -1244,6 +1314,18 @@ function renderAddForm(){
   document.getElementById('fCategory').onchange = ()=>{
     document.getElementById('fCategoryNew').classList.toggle('hidden', document.getElementById('fCategory').value !== '__add_new__');
   };
+  window.addGenreOption = ()=>{
+    const input = document.getElementById('fGenreNew');
+    const name = input.value.trim();
+    if(!name) return;
+    const row = document.getElementById('genreCheckRow');
+    if([...row.querySelectorAll('.fGenreChk')].some(el=>el.value===name)){ input.value=''; return; }
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:4px;margin:0;font-size:13px;color:#ccc;';
+    label.innerHTML = `<input type="checkbox" class="fGenreChk" value="${esc(name)}" checked>${esc(name)}`;
+    row.appendChild(label);
+    input.value = '';
+  };
   toggleTypeFields();
 
   document.getElementById('itemForm').onsubmit = async (e)=>{
@@ -1296,7 +1378,8 @@ function renderAddForm(){
         payload.link = document.getElementById('fLink').value.trim() || null;
         payload.rank = null;
         payload.cast = document.getElementById('fCast').value.trim() || null;
-        payload.genre = document.getElementById('fGenre').value.trim() || null;
+        const genresChecked = [...document.querySelectorAll('.fGenreChk:checked')].map(el=>el.value);
+        payload.genre = genresChecked.length ? genresChecked.join(', ') : null;
         payload.year = document.getElementById('fYear').value.trim() || null;
         payload.runtime = document.getElementById('fRuntime').value.trim() || null;
         if(sId){
