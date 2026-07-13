@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NETFLIX</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -29,7 +33,8 @@ body{
 ::-webkit-scrollbar-thumb{background:#333; border-radius:4px;}
 .hidden{display:none !important;}
 button{cursor:pointer; font-family:inherit;}
-img{display:block;}
+img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c1c1c 70%); background-size:200% 100%; animation:imgSkeleton 1.4s infinite;}
+@keyframes imgSkeleton{to{background-position:-200% 0;}}
 
 /* PROFILE GATE */
 #profileGate{
@@ -322,6 +327,7 @@ img{display:block;}
     </div>
   </div>
   <div class="nav-right">
+    <input type="text" id="searchInput" placeholder="제목 또는 카테고리 검색" oninput="doSearch(this.value)" style="background:rgba(0,0,0,.6);border:1px solid #666;color:#fff;padding:6px 10px;border-radius:4px;margin-right:10px;width:200px;">
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
@@ -753,9 +759,11 @@ function doSearch(q){
 }
 document.getElementById('logoBtn').onclick = ()=>{
   currentSeriesId = null;
+  document.getElementById('searchInput').value = '';
   doSearch('');
   window.scrollTo({top:0, behavior:'smooth'});
 };
+if('serviceWorker' in navigator) window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 /* ===================== CARD HOVER PREVIEW ===================== */
 let previewTimer = null, previewCard = null;
@@ -1112,9 +1120,12 @@ function renderAddForm(){
         </select>
       </div>
       <div class="field" id="categoryField">
-        <label>카테고리 (직접 입력 가능)</label>
-        <input type="text" id="fCategory" list="catList" value="${it?esc(it.category||''):''}" placeholder="예: 여행, 브이로그, 인물">
-        <datalist id="catList">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+        <label>카테고리 (선택 또는 새로 추가)</label>
+        <select id="fCategory">
+          ${cats.map(c=>`<option value="${esc(c)}" ${it&&(it.category||'기타')===c?'selected':''}>${esc(c)}</option>`).join('')}
+          <option value="__add_new__">+ 새 카테고리 추가</option>
+        </select>
+        <input type="text" id="fCategoryNew" class="hidden" placeholder="새 카테고리 이름 입력" style="margin-top:6px;">
       </div>
       <div class="field" id="homeCatField">
         <label>홈 화면(블루베리) 노출 줄 (비워두면 홈에 노출 안 됨)</label>
@@ -1230,6 +1241,9 @@ function renderAddForm(){
     renderAddForm();
   };
   document.getElementById('fSeriesId').onchange = toggleSeasonField;
+  document.getElementById('fCategory').onchange = ()=>{
+    document.getElementById('fCategoryNew').classList.toggle('hidden', document.getElementById('fCategory').value !== '__add_new__');
+  };
   toggleTypeFields();
 
   document.getElementById('itemForm').onsubmit = async (e)=>{
@@ -1240,7 +1254,8 @@ function renderAddForm(){
     try{
       const type = document.getElementById('fType').value;
       const title = document.getElementById('fTitle').value.trim();
-      const category = document.getElementById('fCategory').value.trim() || '기타';
+      const fCatSel = document.getElementById('fCategory').value;
+      const category = (fCatSel === '__add_new__' ? document.getElementById('fCategoryNew').value.trim() : fCatSel) || '기타';
       const homeCategory = document.getElementById('fHomeCat').value.trim() || null;
       const description = document.getElementById('fDesc').value.trim();
       const featured = document.getElementById('fFeatured').checked;
