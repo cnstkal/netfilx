@@ -150,6 +150,10 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
 .season-card:hover img{transform:scale(1.03);}
 .season-card-title{margin-top:8px; font-size:14px; color:#ddd; font-weight:500;}
 .modal-link{display:inline-block; margin-top:14px; color:#4ea6ff; font-size:14px; text-decoration:underline; word-break:break-all;}
+.rank-item{position:relative; display:flex; align-items:flex-end; flex:0 0 auto;}
+.rank-num{font-family:'Pretendard',sans-serif; font-weight:900; font-size:80px; line-height:1; color:transparent; -webkit-text-stroke:2px #565656; margin-right:-20px; position:relative; z-index:1; user-select:none; align-self:flex-end;}
+.rank-item .card{flex:0 0 200px; width:200px;}
+@media(max-width:768px){.rank-num{font-size:44px; -webkit-text-stroke:1.5px #565656; margin-right:-10px;} .rank-item .card{flex:0 0 130px; width:130px;}}
 .top7-grid{display:grid; grid-template-columns:repeat(3,minmax(0,max-content)); justify-content:center; gap:40px 90px; padding-top:40px; max-width:100%; overflow:hidden;}
 .top7-grid .top7-card:nth-child(7){grid-column:2;}
 .top7-card{position:relative; display:flex; align-items:flex-end; cursor:pointer; --imgw:clamp(85px,9.5vw,130px); --rankscale:1.95; max-width:100%;}
@@ -412,6 +416,17 @@ try{ db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
 
 /* ===================== STATE ===================== */
 let ITEMS = [];
+let TOP5_IDS = [];
+let TOP5_UPDATED_AT = 0;
+const TOP5_REFRESH_MS = 24*3600*1000;
+function maybeRefreshTop5(){
+  if(TOP5_UPDATED_AT && (Date.now()-TOP5_UPDATED_AT) < TOP5_REFRESH_MS) return;
+  const ranked = [...ITEMS].filter(i=>i.type!=='series'&&i.type!=='popular').sort((a,b)=>(b.clickCount||0)-(a.clickCount||0)).slice(0,5);
+  if(!ranked.length) return;
+  TOP5_IDS = ranked.map(i=>i.id);
+  TOP5_UPDATED_AT = Date.now();
+  db.collection('items').doc('_top5Cache').set({ids:TOP5_IDS, updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
+}
 let isAdmin = false;
 let editingId = null;
 let currentGalleryImages = [];
@@ -624,6 +639,17 @@ function posterRowHtml(title, items, rowId){
       </div>
     </div>`;
 }
+function rankRowHtml(items){
+  if(!items.length) return '';
+  return `<div class="row">
+      <div class="row-title">실시간 인기 TOP 5</div>
+      <div class="row-track-wrap">
+        <button class="row-arrow left" onclick="scrollRow(this,-1)">&#10094;</button>
+        <div class="row-track">${items.map((it,idx)=>`<div class="rank-item"><span class="rank-num">${idx+1}</span>${cardHtml(it)}</div>`).join('')}</div>
+        <button class="row-arrow right" onclick="scrollRow(this,1)">&#10095;</button>
+      </div>
+    </div>`;
+}
 function renderRows(){
   const rowsEl = document.getElementById('rows');
   const pItems = profileItems();
@@ -640,6 +666,8 @@ function renderRows(){
 
   let html = '';
   html += posterRowHtml('내가 찜한 리스트', wishedItems);
+  const top5Items = TOP5_IDS.map(id=>pItems.find(i=>i.id===id)).filter(Boolean);
+  html += rankRowHtml(top5Items);
   cats.forEach(cat=> html += posterRowHtml(cat, pItems.filter(i=>(i.homeCategory||HOME_CATEGORIES[0])===cat)));
   html += posterRowHtml('시청 중인 콘텐츠', recentItems);
   rowsEl.innerHTML = html;
@@ -854,6 +882,7 @@ function pickRandomItem(){
 function openDetail(id){
   const it = ITEMS.find(i=>i.id===id);
   if(!it) return;
+  db.collection('items').doc(id).update({clickCount:firebase.firestore.FieldValue.increment(1)}).catch(()=>{});
   recentlyViewed = [id, ...recentlyViewed.filter(x=>x!==id)].slice(0,10);
   saveProfileState();
   if(currentProfile === '블루베리') renderRows();
@@ -905,11 +934,15 @@ document.getElementById('modalOverlay').addEventListener('click', e=>{
 let dataLoaded = false;
 db.collection('items').orderBy('createdAt','desc').onSnapshot(snap=>{
   dataLoaded = true;
-  ITEMS = snap.docs.filter(d=>d.id!=='_profileSettings' && d.id!=='_homeCatSettings').map(d=>({id:d.id, ...d.data()}));
+  ITEMS = snap.docs.filter(d=>!['_profileSettings','_homeCatSettings','_top5Cache'].includes(d.id)).map(d=>({id:d.id, ...d.data()}));
   const settingsDoc = snap.docs.find(d=>d.id==='_profileSettings');
   PROFILE_IMAGES = settingsDoc ? (settingsDoc.data().images||{}) : PROFILE_IMAGES;
   const homeCatDoc = snap.docs.find(d=>d.id==='_homeCatSettings');
   HOME_CATEGORIES = homeCatDoc && homeCatDoc.data().list ? homeCatDoc.data().list : HOME_CATEGORIES;
+  const top5Doc = snap.docs.find(d=>d.id==='_top5Cache');
+  TOP5_IDS = top5Doc && top5Doc.data().ids ? top5Doc.data().ids : TOP5_IDS;
+  TOP5_UPDATED_AT = top5Doc && top5Doc.data().updatedAt ? top5Doc.data().updatedAt.toDate().getTime() : TOP5_UPDATED_AT;
+  maybeRefreshTop5();
   applyProfileImages();
   renderAll();
 }, err=>{
