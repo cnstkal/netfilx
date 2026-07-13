@@ -292,20 +292,22 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
   .row-title, .row-track, .series-grid{padding-left:calc(50vw - 760px); padding-right:calc(50vw - 760px);}
 }
 @media(max-width:768px){
-  #nav{flex-direction:column; align-items:stretch; gap:8px; padding:10px 16px 8px;}
-  .nav-left{width:100%; justify-content:space-between; gap:10px;}
-  .logo{font-size:22px; flex:0 0 auto;}
+  #nav{position:static; background:var(--black); flex-wrap:wrap; align-items:center; gap:8px 10px; padding:10px 12px;}
+  .nav-left{flex:1 1 auto; gap:10px; min-width:0;}
+  .logo{font-size:20px; flex:0 0 auto;}
   #navCategories{
-    gap:12px; font-size:12px; overflow-x:auto; flex-wrap:nowrap; flex:1 1 auto;
-    scrollbar-width:none; -ms-overflow-style:none; justify-content:flex-end;
+    gap:10px; font-size:12px; overflow-x:auto; flex-wrap:nowrap; flex:1 1 auto;
+    scrollbar-width:none; -ms-overflow-style:none;
   }
   #navCategories::-webkit-scrollbar{display:none;}
   #navCategories span{flex:0 0 auto;}
-  .nav-right{width:100%; justify-content:flex-end; flex-wrap:nowrap; gap:8px;}
-  #searchInput{width:100% !important; margin-right:0 !important; flex:1 1 auto; min-width:0;}
-  #randomBtn{flex:0 0 auto; white-space:nowrap; margin-right:0 !important; padding:6px 10px !important; font-size:12px !important;}
-  #adminBtn{flex:0 0 auto; white-space:nowrap; padding:6px 10px;}
+  .nav-right{flex:0 0 auto; gap:8px;}
+  #searchIconBtn{font-size:18px; padding:4px;}
+  #randomBtn{white-space:nowrap; margin-right:0 !important; padding:6px 8px !important; font-size:11px !important;}
+  #adminBtn{white-space:nowrap; padding:6px 8px; font-size:12px;}
   #hero{margin-top:0;}
+  #searchOverlay{padding:14px 16px;}
+  #searchOverlay #searchInput{width:100% !important;}
   .hero-content h1{font-size:30px;} .hero-content{padding:0 16px 20px;}
   .hero-content p{font-size:13px; margin-bottom:14px;}
   .row-title, .row-track{padding-left:16px; padding-right:16px;}
@@ -354,11 +356,18 @@ img{display:block; background:linear-gradient(100deg,#1c1c1c 30%,#2a2a2a 50%,#1c
     </div>
   </div>
   <div class="nav-right">
-    <input type="text" id="searchInput" class="hidden" placeholder="제목 또는 카테고리 검색" oninput="doSearch(this.value)" style="background:rgba(0,0,0,.6);border:1px solid #666;color:#fff;padding:6px 10px;border-radius:4px;margin-right:10px;width:200px;">
+    <button id="searchIconBtn" class="hidden icon-btn" onclick="openSearchOverlay()" aria-label="검색">🔍</button>
     <button id="randomBtn" class="hidden" onclick="pickRandomItem()" style="background:transparent;border:1px solid #666;color:#fff;padding:6px 14px;font-size:13px;border-radius:2px;margin-right:10px;">아무거나 보기 🎲</button>
     <button id="adminBtn">관리자</button>
   </div>
 </nav>
+
+<div id="searchOverlay" class="hidden" style="position:fixed;inset:0;z-index:300;background:var(--black);padding:20px 40px;">
+  <div style="display:flex;align-items:center;gap:12px;max-width:600px;margin:0 auto;">
+    <input type="text" id="searchInput" placeholder="제목 또는 카테고리 검색" oninput="doSearch(this.value)" style="flex:1;background:rgba(0,0,0,.6);border:1px solid #666;color:#fff;padding:10px 12px;border-radius:4px;font-size:15px;">
+    <button onclick="closeSearchOverlay()" style="background:none;border:none;color:#fff;font-size:22px;">✕</button>
+  </div>
+</div>
 
 <div id="loadingWrap" class="skeleton-wrap">
   <div class="skel skel-hero"></div>
@@ -453,7 +462,7 @@ function chooseProfile(name){
   document.getElementById('profileGate').classList.add('hidden');
   document.querySelectorAll('#navCategories span').forEach(s=>s.style.fontWeight = s.dataset.p===name?'700':'400');
   const showExtras = name === '블루베리';
-  document.getElementById('searchInput').classList.toggle('hidden', !showExtras);
+  document.getElementById('searchIconBtn').classList.toggle('hidden', !showExtras);
   document.getElementById('randomBtn').classList.toggle('hidden', !showExtras);
   renderAll();
 }
@@ -832,9 +841,20 @@ function doSearch(q){
 document.getElementById('logoBtn').onclick = ()=>{
   currentSeriesId = null;
   document.getElementById('searchInput').value = '';
+  closeSearchOverlay();
   doSearch('');
   window.scrollTo({top:0, behavior:'smooth'});
 };
+function openSearchOverlay(){
+  document.getElementById('searchOverlay').classList.remove('hidden');
+  const inp = document.getElementById('searchInput');
+  inp.focus();
+}
+function closeSearchOverlay(){
+  document.getElementById('searchOverlay').classList.add('hidden');
+  document.getElementById('searchInput').value = '';
+  doSearch('');
+}
 if('serviceWorker' in navigator) window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 /* ===================== CARD HOVER PREVIEW ===================== */
