@@ -1,0 +1,58 @@
+name: Split monolith
+
+on:
+  push:
+    branches: [stability-refactor]
+    paths:
+      - 'index.html'
+      - '.github/workflows/split-monolith.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  split:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Split index.html
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+
+          style_matches = list(re.finditer(r'<style>\\n?(.*?)\\n?</style>', text, re.S))
+          script_matches = list(re.finditer(r'<script>\\n?(.*?)\\n?</script>', text, re.S))
+          if len(style_matches) != 1 or len(script_matches) != 1:
+              raise SystemExit(f'unexpected inline blocks: styles={len(style_matches)}, scripts={len(script_matches)}')
+
+          css = style_matches[0].group(1).strip() + '\\n'
+          js = script_matches[0].group(1).strip() + '\\n'
+
+          text = text[:style_matches[0].start()] + '<link rel="stylesheet" href="styles.css">' + text[style_matches[0].end():]
+          # script match offsets changed after CSS replacement, so locate the final inline block again.
+          text = re.sub(r'<script>\\n?(.*?)\\n?</script>', '<script src="app.js" defer></script>', text, count=1, flags=re.S)
+
+          Path('styles.css').write_text(css, encoding='utf-8')
+          Path('app.js').write_text(js, encoding='utf-8')
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Validate structure
+        run: |
+          test -s styles.css
+          test -s app.js
+          grep -q 'href="styles.css"' index.html
+          grep -q 'src="app.js" defer' index.html
+          ! grep -q '<style>' index.html
+          ! grep -q '<script>\\s*$' index.html
+      - name: Commit split
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html styles.css app.js
+          git diff --cached --quiet || git commit -m 'refactor: split index styles and app script'
+          git push
